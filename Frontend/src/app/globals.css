@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens.
+ * One neutral ramp, one accent (navy), three semantic states. Dark mode follows the system setting.
+ * Radius system: cards 16px, controls 10px, status chips fully rounded.
+ */
+:root {
+  --bg: #f3f4f7;
+  --surface: #fbfbfc;
+  --surface-2: #eceef2;
+  --ink: #14171c;
+  --ink-muted: #474f5c;
+  --ink-subtle: #626a77;
+  --line: #dcdfe5;
+  --line-strong: #c3c8d1;
+
+  --accent: #1d3f8a;
+  --accent-ink: #f6f8ff;
+  --accent-soft: #e3e9f6;
+
+  --danger: #a8231b;
+  --danger-soft: #fae9e7;
+  --warn: #7a5000;
+  --warn-soft: #faf0d9;
+  --success: #17613f;
+  --success-soft: #dff0e7;
+
+  --elevation-card: 0 1px 2px rgb(20 30 60 / 0.05), 0 12px 32px -16px rgb(20 30 60 / 0.14);
+  --r-card: 16px;
+  --r-ctl: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d0f12;
+    --surface: #14171b;
+    --surface-2: #1c2025;
+    --ink: #e8eaee;
+    --ink-muted: #aab1bc;
+    --ink-subtle: #868e9b;
+    --line: #262b33;
+    --line-strong: #3a414c;
+
+    --accent: #93b2f4;
+    --accent-ink: #0a1220;
+    --accent-soft: #17233b;
+
+    --danger: #f3897f;
+    --danger-soft: #2b1816;
+    --warn: #e7b85b;
+    --warn-soft: #2a2211;
+    --success: #6fcf9f;
+    --success-soft: #112619;
+
+    --elevation-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -16px rgb(0 0 0 / 0.6);
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  --radius-card: var(--r-card);
+  --radius-ctl: var(--r-ctl);
+  --shadow-card: var(--elevation-card);
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Skeleton shimmer. Disabled for people who ask for reduced motion. */
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    100deg,
+    var(--surface-2) 30%,
+    color-mix(in srgb, var(--surface-2) 55%, var(--surface)) 50%,
+    var(--surface-2) 70%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Long documents: let the browser skip rendering pages that are far off screen. */
+.page-block {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 900px;
+}

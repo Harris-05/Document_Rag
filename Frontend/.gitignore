@@ -1,2 +1,19 @@
+# dependencies
+/node_modules
 
-.env
+# next.js
+/.next/
+/out/
+/build
+
+# env files (the example file is committed)
+.env*
+!.env.example
+
+# misc
+.DS_Store
+*.pem
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+.vercel
