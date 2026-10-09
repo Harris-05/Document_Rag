@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { ConversationList } from "@/components/library/ConversationList";
 import { LibraryPanel } from "@/components/library/LibraryPanel";
 import { UploadPanel } from "@/components/upload/UploadPanel";
@@ -18,8 +18,12 @@ export function Workspace() {
   const upload = useUpload(refresh);
 
   const [chosen, setChosen] = useState<string[]>([]);
-  const [comparing, setComparing] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [navigating, startNavigation] = useTransition();
   const [compareError, setCompareError] = useState<string | null>(null);
+  // "Opening" lasts only while the comparison is being created and the page is on its way. It is
+  // not stored as a flag that outlives the trip: this page stays mounted when you come back to it.
+  const comparing = creating || navigating;
 
   // The panel on the left already shows live progress for the file being processed,
   // so keep it out of the library list until it has finished.
@@ -53,14 +57,18 @@ export function Workspace() {
   );
 
   const compare = useCallback(async () => {
-    setComparing(true);
+    setCreating(true);
     setCompareError(null);
     try {
       const conversation = await createConversation(selected);
-      router.push(`/conversations/${conversation.id}`);
+      // The documents are now in a comparison. Starting fresh means that coming back to choose
+      // two others does not find the old choice still ticked.
+      setChosen([]);
+      startNavigation(() => router.push(`/conversations/${conversation.id}`));
     } catch (caught) {
       setCompareError(caught instanceof ApiError ? caught.message : "Could not start the comparison.");
-      setComparing(false);
+    } finally {
+      setCreating(false);
     }
   }, [router, selected]);
 
