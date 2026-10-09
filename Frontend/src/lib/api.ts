@@ -55,6 +55,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+/** URL of the original uploaded file, for the in-browser viewer. */
+export const fileUrl = (id: string) => `${API_URL}/api/documents/${id}/file`;
+
 export const listDocuments = () => request<DocumentSummary[]>("/api/documents");
 export const getDocument = (id: string) => request<DocumentSummary>(`/api/documents/${id}`);
 export const getDocumentText = (id: string) => request<DocumentDetail>(`/api/documents/${id}/text`);

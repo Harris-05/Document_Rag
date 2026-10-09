@@ -50,6 +50,9 @@ class Citation(BaseModel):
     verified: bool
     page: int | None
     ranges: list[CitationRange]
+    # Every occurrence of the quote in document order (each may span pages), and which one to show first.
+    matches: list[list[CitationRange]] = []
+    primary_index: int = 0
     occurrences: int
 
 

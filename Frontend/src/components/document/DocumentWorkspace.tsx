@@ -9,7 +9,8 @@ import { FileBadge } from "@/components/upload/FileBadge";
 import { ApiError, getDocumentText } from "@/lib/api";
 import { formatBytes, formatCount } from "@/lib/format";
 import type { Citation, DocumentDetail } from "@/lib/types";
-import { DocumentPane, type Highlight } from "./DocumentPane";
+import { matchesOf, type ViewerTarget } from "@/lib/viewerTarget";
+import { DocumentViewer } from "./DocumentViewer";
 
 type LoadState =
   | { status: "loading" }
@@ -99,13 +100,29 @@ export function DocumentWorkspace({ id }: { id: string }) {
 
 function Workspace({ document }: { document: DocumentDetail }) {
   const [view, setView] = useState<MobileView>("chat");
-  const [highlight, setHighlight] = useState<Highlight | null>(null);
+  const [target, setTarget] = useState<ViewerTarget | null>(null);
   const [active, setActive] = useState<{ messageKey: string; n: number } | null>(null);
 
   const openCitation = useCallback((messageKey: string, citation: Citation) => {
+    const matches = matchesOf(citation);
+    if (matches.length === 0) return;
     setActive({ messageKey, n: citation.n });
-    setHighlight((previous) => ({ ranges: citation.ranges, token: (previous?.token ?? 0) + 1 }));
+    setTarget((previous) => ({
+      token: (previous?.token ?? 0) + 1,
+      citationKey: `${messageKey}:${citation.n}`,
+      matches,
+      index: Math.min(Math.max(citation.primary_index ?? 0, 0), matches.length - 1),
+    }));
     setView("document");
+  }, []);
+
+  // Step through the places a quote occurs, wrapping around at either end.
+  const stepMatch = useCallback((delta: number) => {
+    setTarget((previous) => {
+      if (!previous) return previous;
+      const count = previous.matches.length;
+      return { ...previous, token: previous.token + 1, index: (previous.index + delta + count) % count };
+    });
   }, []);
 
   const paneBase = "min-h-0 flex-1 flex-col overflow-hidden rounded-card border border-line bg-surface shadow-card lg:flex";
@@ -167,7 +184,7 @@ function Workspace({ document }: { document: DocumentDetail }) {
           <ChatPane documentId={document.id} activeCitation={active} onOpenCitation={openCitation} />
         </section>
         <section aria-label="Document" className={`${paneBase} ${view === "document" ? "flex" : "hidden"}`}>
-          <DocumentPane document={document} highlight={highlight} />
+          <DocumentViewer document={document} target={target} onStepMatch={stepMatch} />
         </section>
       </div>
     </div>

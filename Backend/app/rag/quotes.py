@@ -52,11 +52,26 @@ class PageRange:
     end: int
 
 
+MAX_MATCHES = 50
+
+
 @dataclass(frozen=True)
 class QuoteMatch:
-    ranges: list[PageRange]
-    occurrences: int
+    """Every place a quote occurs. Each match is a list of ranges (more than one when the quote
+    spans a page break or skips words with an ellipsis), in document order."""
+
+    matches: list[list[PageRange]]
+    # Which match to show first: the one on the page the model cited, else the earliest.
+    primary_index: int
     method: str  # "exact" | "dehyphenated"
+
+    @property
+    def ranges(self) -> list[PageRange]:
+        return self.matches[self.primary_index]
+
+    @property
+    def occurrences(self) -> int:
+        return len(self.matches)
 
     @property
     def first_page(self) -> int:
@@ -176,13 +191,6 @@ class DocumentText:
                 ranges.append(PageRange(number, lo - page_start, hi - page_start))
         return ranges
 
-    def _page_at(self, offset: int) -> int:
-        page = self.pages[0][0]
-        for (number, _), page_start in zip(self.pages, self._starts, strict=True):
-            if page_start <= offset:
-                page = number
-        return page
-
     def find_quote(self, quote: str, hint_pages: set[int] | None = None) -> QuoteMatch | None:
         """Return where `quote` really occurs, or None if it does not.
 
@@ -215,9 +223,8 @@ class DocumentText:
         if not starts:
             return None
 
-        if hint_pages:
-            starts.sort(key=lambda s: self._page_at(view.origin[s]) not in hint_pages)
-
+        # Every place the whole quote (all its segments, in order) really occurs, in document order.
+        matches: list[list[PageRange]] = []
         for norm_start in starts:
             spans = self._chain(view, segments, norm_start)
             if spans is None:
@@ -228,8 +235,16 @@ class DocumentText:
                 orig_end = view.origin[seg_end - 1] + 1
                 ranges.extend(self.to_page_ranges(orig_start, orig_end))
             if ranges:
-                return QuoteMatch(ranges=ranges, occurrences=len(starts), method=method)
-        return None
+                matches.append(ranges)
+            if len(matches) >= MAX_MATCHES:
+                break
+        if not matches:
+            return None
+
+        primary = 0
+        if hint_pages:
+            primary = next((i for i, m in enumerate(matches) if m[0].page in hint_pages), 0)
+        return QuoteMatch(matches=matches, primary_index=primary, method=method)
 
     @staticmethod
     def _chain(

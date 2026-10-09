@@ -16,7 +16,7 @@ trusted, and quotes that are verified by code before they are shown.
 | Upload PDF/DOCX, type validation, live progress, empty/scanned detection, document library | Done |
 | Chat with a document: agentic RAG, streaming, stop and keep partial answer, saved history | Done (needs an OpenAI key, see below) |
 | Verified quotes (whitespace-tolerant, cross-page, never trusts model positions) | Done |
-| Open a citation in the document at the right page with the quote highlighted | Basic version done |
+| Citation highlighting on the real rendered PDF or Word page: multi-line quotes, quotes across a page break, repeated quotes with a next/previous stepper | Done and checked in a real browser |
 | Multi-document questions, document comparison, Part C | Not started |
 
 ## How the chat answers a question (agentic RAG)
@@ -52,6 +52,16 @@ question
 If retrieval never becomes good enough, the app does not guess. It reports that no supporting
 passage was found, says what it searched, and notes any pages it could not read. It never claims a
 clause does not exist, only that none was found.
+
+### Citation highlighting
+
+Clicking a verified quote opens the original file (rendered with pdf.js for PDFs and docx-preview for
+Word) and highlights the passage on the page. The viewer does not reuse the server's character
+offsets, because a renderer splits and orders the same words differently. It finds the verified quote
+again in the text it rendered, ignoring whitespace, so wrapped lines, odd spacing and split text
+spans do not matter. Quotes that cross a page break are highlighted on both pages, and a quote that
+appears several times can be stepped through ("2 of 3"). If a quote cannot be placed on the rendered
+page, the interface says so and shows it in the extracted text instead. See `decisions.txt` (D15).
 
 ### Quote verification
 
@@ -116,7 +126,7 @@ cd Backend
 ```
 Backend/   FastAPI service
   app/extraction.py     PDF/DOCX text extraction (LangChain loaders)
-  app/rag/              chunking, hybrid index, LLM client, agent loop, quote verification
+  app/rag/              chunking, hybrid index, LLM client, agent loop, quote verification (quotes.py)
   app/routers/          documents and chat endpoints
   tests/                pytest suite (LLM replaced by a scripted fake)
 Frontend/  Next.js (App Router, TypeScript, Tailwind v4)

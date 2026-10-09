@@ -383,6 +383,10 @@ def _parse_quotes(raw: str) -> list[dict[str, Any]]:
     return [item for item in parsed if isinstance(item, dict)] if isinstance(parsed, list) else []
 
 
+def _ranges_json(ranges: list) -> list[dict[str, int]]:
+    return [{"page": r.page, "start": r.start, "end": r.end} for r in ranges]
+
+
 def _verify_quotes(
     answer: str, raw_quotes: str, labelled: dict[str, Passage], document: DocumentText
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
@@ -404,7 +408,10 @@ def _verify_quotes(
             "quote": quote,
             "verified": match is not None,
             "page": match.first_page if match else None,
-            "ranges": [{"page": r.page, "start": r.start, "end": r.end} for r in match.ranges] if match else [],
+            "ranges": _ranges_json(match.ranges) if match else [],
+            # Every place the quote occurs, in document order, so the reader can step through them.
+            "matches": [_ranges_json(m) for m in match.matches] if match else [],
+            "primary_index": match.primary_index if match else 0,
             "occurrences": match.occurrences if match else 0,
         }
 
@@ -412,7 +419,16 @@ def _verify_quotes(
     for number in sorted({int(m) for m in _CITATION_MARKER.findall(answer)}):
         citations.setdefault(
             number,
-            {"n": number, "quote": "", "verified": False, "page": None, "ranges": [], "occurrences": 0},
+            {
+                "n": number,
+                "quote": "",
+                "verified": False,
+                "page": None,
+                "ranges": [],
+                "matches": [],
+                "primary_index": 0,
+                "occurrences": 0,
+            },
         )
 
     ordered = [citations[n] for n in sorted(citations)]

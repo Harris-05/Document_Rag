@@ -236,3 +236,53 @@ Temperatures:
   The search index format changed, so existing indexes are discarded on startup and rebuilt on each
   document's next question. Documents and conversations are untouched.
 
+
+D15. Citation highlighting on the real rendered page
+----------------------------------------------------
+The brief points out that extracted text and the rendered page are laid out differently. Showing the
+highlight only in the extracted-text view would sidestep exactly that problem, so the original file
+is rendered and the highlight is drawn on it.
+
+Rendering: PDFs are drawn with pdf.js (a canvas for the look, a transparent text layer for the
+words). DOCX files are drawn with docx-preview. The original upload is served by
+GET /api/documents/{id}/file, inline, with range support so large PDFs load progressively. Only
+pages near the viewport are drawn and the rest are released, so a 150-page contract stays light.
+The extracted-text view remains as a second tab and as the fallback if a file cannot be rendered
+(password-protected, damaged).
+
+Mapping: the server's character offsets describe ITS extraction, and a viewer breaks the same words
+into different pieces and sometimes a different order. So offsets are not carried across. Instead
+the viewer takes the verified quote text and finds it again in the text it rendered:
+  - the match ignores all whitespace, case, curly quotes, dashes, ligatures and soft hyphens, so
+    line breaks and the missing spaces between pdf.js text spans do not matter;
+  - a second pass ignores hyphens, for words split at the end of a line;
+  - if the full quote is still not found (for example a table the viewer read in another order),
+    the start and end of the quote are found separately and the stretch between them is used, but
+    only if that stretch is a plausible length;
+  - if none of that works the interface says so plainly and offers the extracted text instead of
+    drawing a highlight in the wrong place.
+The matched span becomes real on-screen rectangles through the browser's own Range geometry, merged
+per line, so a quote that wraps over three lines is three clean bars.
+
+Quotes that span a page break: the server returns one range per page. Each part is located on its
+own page, and the viewer centres the whole span when it fits on screen, so both halves are visible.
+
+Quotes that appear more than once: the server now returns EVERY occurrence in document order and
+marks the one on the page the model cited as primary. Which repeat on a page is meant is decided by
+counting identical occurrences before it in the server's text and taking the same-numbered one in
+the rendered text. The interface shows "2 of 3" with previous and next buttons that wrap around.
+
+Why not highlight by offset into the text layer: pdf.js's text order and the extractor's order
+differ for tables, columns and headers, so offsets would drift and highlight the wrong words
+without any sign of trouble. Finding the words again fails loudly instead.
+
+Verified in a real browser against a rendered PDF and DOCX, covering: a quote wrapping over several
+lines, a sentence crossing a page break, a clause repeated on three pages, an unverified quote that
+must not be openable, zoom, and the DOCX view (30 checks).
+
+Known limits: scanned pages have no text, so nothing on them can be quoted or highlighted. Quotes
+inside images are not found. A DOCX is shown as docx-preview renders it, which is close to but not
+identical to Word. DOCX fit-to-width uses CSS zoom (Chrome, Edge, Safari, Firefox 126 and later).
+pdf.js's legacy build is used because the current build needs very new browser features and failed
+outright on Chrome 138.
+

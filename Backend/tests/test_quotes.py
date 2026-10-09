@@ -148,3 +148,42 @@ class TestRejection:
 class TestNormalization:
     def test_normalize_collapses_whitespace_and_folds_case(self):
         assert normalize_for_match("  Hello\n\n  “WORLD”  ") == 'hello "world"'
+
+
+class TestEveryOccurrence:
+    def test_all_occurrences_are_returned_in_document_order(self):
+        text = "Either party may terminate this Agreement on written notice."
+        document = doc(text, "Filler page.", text, text)
+        match = document.find_quote(text)
+
+        assert match is not None
+        assert match.occurrences == 3
+        assert [m[0].page for m in match.matches] == [1, 3, 4]
+
+    def test_the_primary_match_follows_the_hint_but_the_list_stays_in_order(self):
+        text = "Either party may terminate this Agreement on written notice."
+        document = doc(text, "Filler page.", text)
+        match = document.find_quote(text, hint_pages={3})
+
+        assert match is not None
+        assert match.primary_index == 1
+        assert match.ranges[0].page == 3
+        assert [m[0].page for m in match.matches] == [1, 3]
+
+    def test_a_multi_page_quote_that_repeats_keeps_each_occurrence_whole(self):
+        document = doc(
+            "The Supplier shall deliver the goods and",
+            "services within thirty days of the Effective Date.",
+            "The Supplier shall deliver the goods and",
+            "services within thirty days of the Effective Date.",
+        )
+        match = document.find_quote(
+            "The Supplier shall deliver the goods and services within thirty days of the Effective Date."
+        )
+
+        assert match is not None
+        assert [[r.page for r in m] for m in match.matches] == [[1, 2], [3, 4]]
+
+    def test_a_single_occurrence_has_a_single_match(self):
+        match = doc("Payment is due within thirty days.").find_quote("Payment is due within thirty days.")
+        assert match is not None and match.occurrences == 1 and match.primary_index == 0

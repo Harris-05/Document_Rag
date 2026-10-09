@@ -155,3 +155,66 @@ body {
   padding: 1px 0;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent);
 }
+
+/* Rendered PDF and Word pages (the "Original" view). */
+.pdf-scroller,
+.docx-scroller {
+  position: relative;
+  background: var(--surface-2);
+}
+
+.pdf-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+}
+
+.pdf-page {
+  position: relative;
+  flex: none;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.18), 0 8px 24px -12px rgb(0 0 0 / 0.25);
+}
+
+.pdf-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.pdf-page-label {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #9aa0aa;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+/* Highlight bars drawn over the page where a quote sits. */
+.cite-overlay {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: 3px;
+  background: color-mix(in srgb, #f5c518 55%, transparent);
+  outline: 1.5px solid color-mix(in srgb, #b8860b 70%, transparent);
+  mix-blend-mode: multiply;
+}
+
+.docx-frame {
+  position: relative;
+}
+
+.docx-content .docx-wrapper {
+  background: transparent;
+  padding: 16px;
+}
+
+.docx-content section.docx {
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.18), 0 8px 24px -12px rgb(0 0 0 / 0.25);
+  margin-bottom: 12px;
+}

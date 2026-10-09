@@ -297,3 +297,33 @@ class TestShortTermMemory:
         ask(client, document_id, "Who indemnifies whom?")
 
         assert "Who indemnifies whom?" in llm.prompts_for(prompts.GRADE_SYSTEM)[0]
+
+
+class TestCitationMatches:
+    def test_every_occurrence_of_a_quote_is_returned_with_a_primary_one(self, client, document_id, use_llm):
+        use_llm(llm_for_one_question())
+        events = parse_sse(ask(client, document_id).text)
+        citation = next(d for n, d in events if n == "citations")[0]
+
+        # make_text_pdf puts the same sentence on each of its three pages.
+        assert citation["occurrences"] == 3
+        assert [m[0]["page"] for m in citation["matches"]] == [1, 2, 3]
+        assert citation["ranges"] == citation["matches"][citation["primary_index"]]
+        assert all(r["end"] > r["start"] for match in citation["matches"] for r in match)
+
+    def test_the_matches_survive_being_saved_and_reopened(self, client, document_id, use_llm):
+        use_llm(llm_for_one_question())
+        ask(client, document_id)
+
+        saved = client.get(f"/api/documents/{document_id}/messages").json()[-1]["citations"][0]
+        assert len(saved["matches"]) == 3
+        assert saved["primary_index"] == 0
+        assert saved["ranges"] == saved["matches"][0]
+
+    def test_an_unverified_citation_has_no_matches(self, client, document_id, use_llm):
+        use_llm(llm_for_one_question(answer=answer_with("This sentence is not anywhere in the contract at all.")))
+        events = parse_sse(ask(client, document_id).text)
+        citation = next(d for n, d in events if n == "citations")[0]
+
+        assert citation["verified"] is False
+        assert citation["matches"] == [] and citation["ranges"] == []

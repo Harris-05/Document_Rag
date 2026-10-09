@@ -2,6 +2,7 @@ import uuid
 from pathlib import PurePosixPath, PureWindowsPath
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 
 from app import repository
 from app.config import get_settings
@@ -109,3 +110,23 @@ def get_document_text(document_id: str) -> DocumentDetail:
 def delete_document(document_id: str) -> None:
     if not repository.delete_document(document_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found.")
+
+
+MEDIA_TYPES = {
+    "pdf": "application/pdf",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
+
+@router.get("/{document_id}/file")
+def get_original_file(document_id: str) -> FileResponse:
+    """The uploaded file exactly as received, for the in-browser viewer. Served inline, not as a download."""
+    summary = repository.get_summary(document_id)
+    path = repository.stored_file_path(document_id)
+    if summary is None or summary.status != "ready" or not path.exists():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found.")
+    return FileResponse(
+        path,
+        media_type=MEDIA_TYPES[summary.file_kind],
+        headers={"Content-Disposition": "inline", "Cache-Control": "private, max-age=3600"},
+    )

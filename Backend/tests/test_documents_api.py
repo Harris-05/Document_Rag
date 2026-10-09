@@ -185,3 +185,44 @@ class TestLibrary:
             stuck = restarted.get("/api/documents/stuck").json()
         assert stuck["status"] == "failed"
         assert stuck["error_code"] == "INTERRUPTED"
+
+
+class TestOriginalFile:
+    def test_the_uploaded_pdf_is_served_inline_with_the_right_type(self, client):
+        content = make_text_pdf(2)
+        document = finished(client, upload(client, "msa.pdf", content))
+
+        response = client.get(f"/api/documents/{document['id']}/file")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/pdf"
+        assert response.headers["content-disposition"] == "inline"
+        assert response.content == content
+
+    def test_a_docx_is_served_with_the_word_type(self, client):
+        content = make_docx(["Governing law", CONTRACT_SENTENCE])
+        document = finished(client, upload(client, "nda.docx", content, DOCX_TYPE))
+
+        response = client.get(f"/api/documents/{document['id']}/file")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/vnd.openxmlformats")
+
+    def test_range_requests_work_so_large_pdfs_can_load_progressively(self, client):
+        document = finished(client, upload(client, "msa.pdf", make_text_pdf(3)))
+
+        response = client.get(f"/api/documents/{document['id']}/file", headers={"Range": "bytes=0-9"})
+
+        assert response.status_code == 206
+        assert response.content.startswith(b"%PDF-")
+
+    def test_unknown_and_failed_documents_have_no_file(self, client):
+        assert client.get("/api/documents/missing/file").status_code == 404
+        failed = finished(client, upload(client, "blank.pdf", make_blank_pdf()))
+        assert client.get(f"/api/documents/{failed['id']}/file").status_code == 404
+
+    def test_a_deleted_document_no_longer_serves_its_file(self, client):
+        document = finished(client, upload(client, "msa.pdf", make_text_pdf(1)))
+        client.delete(f"/api/documents/{document['id']}")
+
+        assert client.get(f"/api/documents/{document['id']}/file").status_code == 404

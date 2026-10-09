@@ -59,7 +59,11 @@ export interface Citation {
   quote: string;
   verified: boolean;
   page: number | null;
+  /** The match to show first. Kept for older saved messages that have no `matches`. */
   ranges: CitationRange[];
+  /** Every place the quote occurs, in document order. Each match may span pages. */
+  matches: CitationRange[][];
+  primary_index: number;
   occurrences: number;
 }
 
