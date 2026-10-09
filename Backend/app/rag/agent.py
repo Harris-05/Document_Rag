@@ -14,7 +14,7 @@ import json
 import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
@@ -107,9 +107,23 @@ def _validated(model: type[BaseModel], data: dict[str, Any]) -> Any:
         raise LLMError("The AI model returned an answer in an unexpected format. Please try again.") from error
 
 
-async def _plan_queries(inp: AgentInput, state: _State) -> QueryPlan:
+class _PlanInput(Protocol):
+    """What query planning needs, so it can serve one document or several."""
+
+    question: str
+    history: list[tuple[str, str]]
+    llm: LLMClient
+    settings: Settings
+
+
+async def _plan_queries(inp: _PlanInput, state: _State, documents_note: str | None = None) -> QueryPlan:
     prompt = prompts.build_query_prompt(
-        inp.question, inp.history, state.queries_tried, state.missing or None, inp.settings.chat_memory_chars
+        inp.question,
+        inp.history,
+        state.queries_tried,
+        state.missing or None,
+        inp.settings.chat_memory_chars,
+        documents_note,
     )
     plan: QueryPlan = _validated(
         QueryPlan,

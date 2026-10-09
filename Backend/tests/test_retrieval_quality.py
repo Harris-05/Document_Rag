@@ -8,7 +8,7 @@ import pytest
 
 from app import repository
 from app.config import Settings, get_settings
-from app.db import INDEX_VERSION, connect, init_db
+from app.db import SCHEMA_VERSION, connect, init_db
 from app.rag import prompts
 from app.rag.chunking import detect_heading
 from app.rag.index import Chunk, DocumentIndex, store_chunks, tokenize
@@ -246,7 +246,7 @@ class TestIndexMigration:
             assert connection.execute("SELECT COUNT(*) FROM chunks").fetchone()[0] == 0
             columns = [row[1] for row in connection.execute("PRAGMA table_info(chunks)")]
             assert "context" in columns
-            assert connection.execute("PRAGMA user_version").fetchone()[0] == INDEX_VERSION
+            assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         get_settings.cache_clear()
 
     def test_documents_and_conversations_survive_an_index_upgrade(self, tmp_path, monkeypatch):

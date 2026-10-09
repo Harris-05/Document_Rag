@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { ApiError, listMessages, streamChat } from "@/lib/api";
+import { ApiError } from "@/lib/api";
+import type { ChatSource } from "@/lib/chatSource";
 import type {
   AnswerQuality,
   ChatEvent,
@@ -160,7 +161,7 @@ function reducer(state: ChatState, action: Action): ChatState {
 let counter = 0;
 const nextKey = (prefix: string) => `${prefix}-${Date.now()}-${counter++}`;
 
-export function useChat(documentId: string) {
+export function useChat(source: ChatSource) {
   const [state, dispatch] = useReducer(reducer, {
     history: "loading",
     historyError: null,
@@ -171,14 +172,14 @@ export function useChat(documentId: string) {
 
   const loadHistory = useCallback(async () => {
     try {
-      dispatch({ type: "historyLoaded", messages: fromServer(await listMessages(documentId)) });
+      dispatch({ type: "historyLoaded", messages: fromServer(await source.load()) });
     } catch (error) {
       dispatch({
         type: "historyFailed",
         message: error instanceof ApiError ? error.message : "Could not load the conversation.",
       });
     }
-  }, [documentId]);
+  }, [source]);
 
   useEffect(() => {
     void loadHistory();
@@ -200,8 +201,7 @@ export function useChat(documentId: string) {
       dispatch({ type: "asked", question, userKey, assistantKey });
 
       try {
-        await streamChat(
-          documentId,
+        await source.stream(
           question,
           (event) => dispatch({ type: "event", key: assistantKey, event }),
           run.signal,
@@ -224,7 +224,7 @@ export function useChat(documentId: string) {
         activeKey.current = null;
       }
     },
-    [documentId],
+    [source],
   );
 
   const stop = useCallback(() => controller.current?.abort(), []);

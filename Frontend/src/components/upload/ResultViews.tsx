@@ -25,6 +25,8 @@ const ERROR_PRESENTATION: Record<ErrorCode, { title: string; icon: Icon }> = {
   INTERRUPTED: { title: "Processing was interrupted", icon: Warning },
   NETWORK: { title: "Can't reach the server", icon: CloudSlash },
   AI_NOT_CONFIGURED: { title: "The AI provider is not set up", icon: Warning },
+  TOO_MANY_DOCUMENTS: { title: "Too many documents selected", icon: Warning },
+  DOCUMENT_NOT_READY: { title: "A document is not ready", icon: Warning },
   INTERNAL: { title: "Something went wrong", icon: Warning },
   UNKNOWN: { title: "Something went wrong", icon: Warning },
 };

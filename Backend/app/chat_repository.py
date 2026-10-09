@@ -20,25 +20,25 @@ def _row_to_message(row) -> ChatMessage:
     )
 
 
-def list_messages(document_id: str) -> list[ChatMessage]:
+def list_messages(conversation_id: str) -> list[ChatMessage]:
     with connect() as connection:
         rows = connection.execute(
-            "SELECT * FROM messages WHERE document_id = ? ORDER BY id", (document_id,)
+            "SELECT * FROM messages WHERE conversation_id = ? ORDER BY id", (conversation_id,)
         ).fetchall()
     return [_row_to_message(row) for row in rows]
 
 
-def add_user_message(document_id: str, content: str) -> int:
+def add_user_message(conversation_id: str, content: str) -> int:
     with connect() as connection:
         cursor = connection.execute(
-            "INSERT INTO messages (document_id, role, content, status, created_at) VALUES (?, 'user', ?, 'complete', ?)",
-            (document_id, content, utc_now()),
+            "INSERT INTO messages (conversation_id, role, content, status, created_at) VALUES (?, 'user', ?, 'complete', ?)",
+            (conversation_id, content, utc_now()),
         )
         return int(cursor.lastrowid)
 
 
 def add_assistant_message(
-    document_id: str,
+    conversation_id: str,
     *,
     content: str,
     status: str,
@@ -52,11 +52,11 @@ def add_assistant_message(
         cursor = connection.execute(
             """
             INSERT INTO messages
-                (document_id, role, content, status, quality, citations, trace, coverage, error_message, created_at)
+                (conversation_id, role, content, status, quality, citations, trace, coverage, error_message, created_at)
             VALUES (?, 'assistant', ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                document_id,
+                conversation_id,
                 content,
                 status,
                 quality,
@@ -70,20 +70,20 @@ def add_assistant_message(
         return int(cursor.lastrowid)
 
 
-def recent_history(document_id: str, limit: int = 8) -> list[tuple[str, str]]:
+def recent_history(conversation_id: str, limit: int = 8) -> list[tuple[str, str]]:
     """Completed turns only, oldest first, so an interrupted answer never poisons later context."""
     with connect() as connection:
         rows = connection.execute(
             """
             SELECT role, content FROM messages
-            WHERE document_id = ? AND (role = 'user' OR status = 'complete')
+            WHERE conversation_id = ? AND (role = 'user' OR status = 'complete')
             ORDER BY id DESC LIMIT ?
             """,
-            (document_id, limit),
+            (conversation_id, limit),
         ).fetchall()
     return [(row["role"], row["content"]) for row in reversed(rows)]
 
 
-def clear_messages(document_id: str) -> None:
+def clear_messages(conversation_id: str) -> None:
     with connect() as connection:
-        connection.execute("DELETE FROM messages WHERE document_id = ?", (document_id,))
+        connection.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))

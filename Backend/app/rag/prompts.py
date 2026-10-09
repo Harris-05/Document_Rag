@@ -112,11 +112,14 @@ def build_query_prompt(
     previous_queries: list[str],
     missing: str | None,
     memory_chars: int = 800,
+    documents_note: str | None = None,
 ) -> str:
     parts = [
         f"Conversation so far:\n{format_history(history, memory_chars)}",
         f"Latest user message:\n{question}",
     ]
+    if documents_note:
+        parts.append(documents_note)
     if previous_queries:
         parts.append("Queries already tried (do not repeat):\n" + "\n".join(f"- {q}" for q in previous_queries))
     if missing:

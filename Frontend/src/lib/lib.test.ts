@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { splitByRanges } from "./highlight";
 import { EXPLANATION_LABEL, splitCitations, splitExplanation, splitParagraphs } from "./messageText";
+import { pruneSelection, toggleSelection } from "./selection";
 import { createSseParser, type SseFrame } from "./sse";
 import { validateFile } from "./validation";
 
@@ -141,5 +142,28 @@ describe("splitExplanation", () => {
 
   it("shows an explanation that is still streaming in", () => {
     expect(splitExplanation(`Answer [1].\n\n${EXPLANATION_LABEL}\nIn gen`).explanation).toBe("In gen");
+  });
+});
+
+describe("document selection", () => {
+  it("adds documents in the order they are chosen and removes them when chosen again", () => {
+    let selected: string[] = [];
+    selected = toggleSelection(selected, "b");
+    selected = toggleSelection(selected, "a");
+    expect(selected).toEqual(["b", "a"]);
+    expect(toggleSelection(selected, "b")).toEqual(["a"]);
+  });
+
+  it("stops at the limit but still lets a chosen document be removed", () => {
+    const full = ["1", "2", "3", "4", "5"];
+    expect(toggleSelection(full, "6")).toEqual(full);
+    expect(toggleSelection(full, "3")).toEqual(["1", "2", "4", "5"]);
+    expect(toggleSelection(["1", "2"], "3", 2)).toEqual(["1", "2"]);
+  });
+
+  it("forgets documents that no longer exist, and keeps the same array when nothing changed", () => {
+    const selected = ["a", "b", "c"];
+    expect(pruneSelection(selected, ["a", "c"])).toEqual(["a", "c"]);
+    expect(pruneSelection(selected, ["a", "b", "c", "d"])).toBe(selected);
   });
 });

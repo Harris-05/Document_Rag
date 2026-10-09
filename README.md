@@ -17,7 +17,8 @@ trusted, and quotes that are verified by code before they are shown.
 | Chat with a document: agentic RAG, streaming, stop and keep partial answer, saved history | Done (needs an OpenAI key, see below) |
 | Verified quotes (whitespace-tolerant, cross-page, never trusts model positions) | Done |
 | Citation highlighting on the real rendered PDF or Word page: multi-line quotes, quotes across a page break, repeated quotes with a next/previous stepper | Done and checked in a real browser |
-| Multi-document questions, document comparison, Part C | Not started |
+| Multi-document questions: select several documents, one integrated comparison, each quote names and is verified in its own document | Done and checked in a real browser |
+| Document comparison (two versions of a contract), Part C | Not started |
 
 ## How the chat answers a question (agentic RAG)
 
@@ -62,6 +63,16 @@ again in the text it rendered, ignoring whitespace, so wrapped lines, odd spacin
 spans do not matter. Quotes that cross a page break are highlighted on both pages, and a quote that
 appears several times can be stepped through ("2 of 3"). If a quote cannot be placed on the rendered
 page, the interface says so and shows it in the extracted text instead. See `decisions.txt` (D15).
+
+### Asking across several documents
+
+Select two to five documents in the library and choose **Compare**. Each document is searched on its own
+(a long contract cannot crowd out a short one), and the relevance judge decides per document whether
+its evidence is enough, so only the documents still short are searched again. The answer is a single
+comparison rather than one summary per document, a document with nothing relevant is reported as such,
+and every quote names its document. Each quote is verified against **only the document it is credited
+to**: a sentence that exists in document A but is attributed to document B is shown as unverified. See
+`decisions.txt` (D16).
 
 ### Quote verification
 
@@ -115,6 +126,8 @@ cd Backend
 | `TEMPERATURE_PLAN` / `TEMPERATURE_JUDGE` / `TEMPERATURE_ANSWER` | Sampling temperature for query writing, relevance judging and answering | `0.3` / `0.1` / `0.4` |
 | `CANDIDATES_PER_ROUND` | Passages judged in each search round | `14` |
 | `MAX_EVIDENCE_PASSAGES` | Passages the answer may be written from | `10` |
+| `MAX_DOCUMENTS_PER_QUESTION` | Most documents that can be compared in one question | `5` |
+| `CANDIDATES_PER_DOCUMENT` | Passages judged per document in each round of a comparison | `8` |
 | `NEIGHBOR_CHUNKS` | Surrounding chunks added around a strong passage (`0` turns off) | `1` |
 | `CHAT_MEMORY_TURNS` | Earlier question/answer exchanges the assistant remembers (`0` turns memory off, max `20`) | `6` |
 | `CHAT_MEMORY_CHARS` | Earlier answers are shortened to this length before the model sees them | `800` |

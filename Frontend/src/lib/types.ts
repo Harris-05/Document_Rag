@@ -38,6 +38,8 @@ export type ErrorCode =
   | "INTERRUPTED"
   | "INTERNAL"
   | "AI_NOT_CONFIGURED"
+  | "TOO_MANY_DOCUMENTS"
+  | "DOCUMENT_NOT_READY"
   | "NETWORK"
   | "UNKNOWN";
 
@@ -65,6 +67,11 @@ export interface Citation {
   matches: CitationRange[][];
   primary_index: number;
   occurrences: number;
+  /** Which document the quote belongs to. Set for every quote, in one-document and multi-document chats. */
+  document_id?: string | null;
+  document_name?: string | null;
+  /** The short label used inside the prompt (D1, D2). Only for comparisons. */
+  document_label?: string | null;
 }
 
 export interface TraceStep {
@@ -74,12 +81,32 @@ export interface TraceStep {
   detail: Record<string, unknown> | null;
 }
 
+export interface DocumentCoverage {
+  document_id: string;
+  name: string;
+  pages: number;
+  sections: number;
+  unreadable_pages: number;
+  evidence: "sufficient" | "partial" | "none";
+}
+
 export interface Coverage {
   pages: number;
   sections: number;
   unreadable_pages: number;
   rounds: number;
   keyword_only: boolean;
+  /** Per-document results, present when a question was asked across several documents. */
+  documents?: DocumentCoverage[] | null;
+}
+
+/** A chat about one document ("single") or several ("multi"). */
+export interface Conversation {
+  id: string;
+  kind: "single" | "multi";
+  created_at: string;
+  message_count: number;
+  documents: DocumentSummary[];
 }
 
 export interface ServerChatMessage {

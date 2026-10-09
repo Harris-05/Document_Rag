@@ -7,11 +7,13 @@ import type { Citation } from "@/lib/types";
 interface CitationCardProps {
   id: string;
   citation: Citation;
+  /** In a comparison, say which document the quote is from. */
+  multi?: boolean;
   active: boolean;
   onOpen: (citation: Citation) => void;
 }
 
-export function CitationCard({ id, citation, active, onOpen }: CitationCardProps) {
+export function CitationCard({ id, citation, multi = false, active, onOpen }: CitationCardProps) {
   const { verified } = citation;
   const hasQuote = citation.quote.length > 0;
 
@@ -31,6 +33,18 @@ export function CitationCard({ id, citation, active, onOpen }: CitationCardProps
       </span>
 
       <div className="flex min-w-0 flex-1 flex-col gap-3">
+        {multi && citation.document_name && (
+          <p className="flex items-center gap-2 text-[12px] text-ink-muted">
+            {citation.document_label && (
+              <span className="rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-ink-muted">
+                {citation.document_label}
+              </span>
+            )}
+            <span className="min-w-0 truncate font-medium" title={citation.document_name}>
+              {citation.document_name}
+            </span>
+          </p>
+        )}
         {hasQuote ? (
           <blockquote className="border-l-2 border-line-strong pl-3 text-[14px] leading-relaxed text-ink">
             &ldquo;{citation.quote}&rdquo;
@@ -53,7 +67,9 @@ export function CitationCard({ id, citation, active, onOpen }: CitationCardProps
             <p className="flex items-start gap-1.5 text-[13px] text-warn">
               <ShieldWarning size={16} weight="fill" className="mt-px shrink-0" aria-hidden />
               <span>
-                <span className="font-medium">Not found in the document.</span>{" "}
+                <span className="font-medium">
+                  {multi && citation.document_name ? `Not found in ${citation.document_name}.` : "Not found in the document."}
+                </span>{" "}
                 <span className="text-ink-muted">The wording may have been changed, so do not rely on it.</span>
               </span>
             </p>

@@ -4,6 +4,7 @@ import { ChatsCircle, CloudSlash } from "@phosphor-icons/react";
 import { useCallback, useLayoutEffect, useRef } from "react";
 import { Button } from "@/components/ui/Button";
 import { useChat } from "@/hooks/useChat";
+import type { ChatSource } from "@/lib/chatSource";
 import type { Citation } from "@/lib/types";
 import { AssistantMessage } from "./AssistantMessage";
 import { Composer } from "./Composer";
@@ -17,7 +18,9 @@ const SUGGESTIONS = [
 const STICK_THRESHOLD_PX = 140;
 
 interface ChatPaneProps {
-  documentId: string;
+  source: ChatSource;
+  /** True when the chat spans several documents, so answers show which document each quote is from. */
+  multi?: boolean;
   activeCitation: { messageKey: string; n: number } | null;
   onOpenCitation: (messageKey: string, citation: Citation) => void;
 }
@@ -66,8 +69,8 @@ function EmptyChat({ onPick, disabled }: { onPick: (question: string) => void; d
   );
 }
 
-export function ChatPane({ documentId, activeCitation, onOpenCitation }: ChatPaneProps) {
-  const chat = useChat(documentId);
+export function ChatPane({ source, multi = false, activeCitation, onOpenCitation }: ChatPaneProps) {
+  const chat = useChat(source);
   const scroller = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
 
@@ -133,6 +136,7 @@ export function ChatPane({ documentId, activeCitation, onOpenCitation }: ChatPan
                   <AssistantMessage
                     message={message}
                     activeCitation={activeCitation}
+                    multi={multi}
                     onOpenCitation={onOpenCitation}
                     onRetry={send}
                     retryDisabled={chat.streaming}

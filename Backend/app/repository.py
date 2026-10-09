@@ -131,6 +131,15 @@ def delete_document(document_id: str) -> bool:
     with connect() as connection:
         cursor = connection.execute("DELETE FROM documents WHERE id = ?", (document_id,))
         deleted = cursor.rowcount > 0
+        # Removing the document unlinked it from its conversations. A conversation left with no
+        # documents at all (its one-document chat, or a comparison of documents that are all gone)
+        # has nothing to talk about, so it goes too. One that still has documents keeps its history.
+        connection.execute(
+            """
+            DELETE FROM conversations
+            WHERE NOT EXISTS (SELECT 1 FROM conversation_documents cd WHERE cd.conversation_id = conversations.id)
+            """
+        )
     stored_file_path(document_id).unlink(missing_ok=True)
     return deleted
 

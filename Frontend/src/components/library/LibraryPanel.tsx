@@ -3,6 +3,7 @@
 import { CloudSlash, FolderOpen } from "@phosphor-icons/react";
 import { AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/Button";
+import { MAX_COMPARE, MIN_COMPARE } from "@/lib/selection";
 import type { DocumentSummary } from "@/lib/types";
 import { DocumentRow } from "./DocumentRow";
 
@@ -12,6 +13,13 @@ interface LibraryPanelProps {
   error: string | null;
   onRetry: () => void;
   onDelete: (id: string) => Promise<string | null>;
+  /** Ids chosen for a comparison, in the order they were chosen. */
+  selected: string[];
+  onToggleSelected: (id: string) => void;
+  onClearSelection: () => void;
+  onCompare: () => void;
+  comparing: boolean;
+  compareError: string | null;
 }
 
 function LibrarySkeleton() {
@@ -59,7 +67,19 @@ function LibraryError({ message, onRetry }: { message: string; onRetry: () => vo
   );
 }
 
-export function LibraryPanel({ documents, status, error, onRetry, onDelete }: LibraryPanelProps) {
+export function LibraryPanel({
+  documents,
+  status,
+  error,
+  onRetry,
+  onDelete,
+  selected,
+  onToggleSelected,
+  onClearSelection,
+  onCompare,
+  comparing,
+  compareError,
+}: LibraryPanelProps) {
   return (
     <section aria-labelledby="library-heading" className="flex flex-col gap-4">
       <div className="flex items-baseline justify-between">
@@ -83,10 +103,40 @@ export function LibraryPanel({ documents, status, error, onRetry, onDelete }: Li
           <ul className="max-h-[34rem] divide-y divide-line overflow-y-auto">
             <AnimatePresence initial={false}>
               {documents.map((document) => (
-                <DocumentRow key={document.id} document={document} onDelete={onDelete} />
+                <DocumentRow
+                  key={document.id}
+                  document={document}
+                  onDelete={onDelete}
+                  selectedAs={selected.includes(document.id) ? selected.indexOf(document.id) + 1 : null}
+                  selectionFull={selected.length >= MAX_COMPARE}
+                  onToggleSelected={onToggleSelected}
+                />
               ))}
             </AnimatePresence>
           </ul>
+        )}
+        {selected.length > 0 && (
+          <div className="flex flex-col gap-2 border-t border-line bg-surface-2 px-4 py-3 sm:px-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[13px] text-ink-muted" aria-live="polite">
+                <span className="font-mono tabular-nums text-ink">{selected.length}</span> of {MAX_COMPARE} selected
+                {selected.length < MIN_COMPARE && ", choose at least 2 to compare"}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" onClick={onClearSelection} disabled={comparing} className="min-h-10 px-3 text-[13px]">
+                  Clear
+                </Button>
+                <Button onClick={onCompare} disabled={selected.length < MIN_COMPARE || comparing} className="min-h-10 px-4 text-[13px]">
+                  {comparing ? "Opening" : selected.length >= MIN_COMPARE ? `Compare ${selected.length} documents` : "Compare"}
+                </Button>
+              </div>
+            </div>
+            {compareError && (
+              <p role="alert" className="text-[13px] text-danger">
+                {compareError}
+              </p>
+            )}
+          </div>
         )}
       </div>
     </section>

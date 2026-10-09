@@ -54,6 +54,11 @@ class Citation(BaseModel):
     matches: list[list[CitationRange]] = []
     primary_index: int = 0
     occurrences: int
+    # Which document the quote belongs to. Always set for comparisons across documents.
+    document_id: str | None = None
+    document_name: str | None = None
+    # Short label used inside the answer prompt (D1, D2, ...), kept so the interface can badge it.
+    document_label: str | None = None
 
 
 class TraceStep(BaseModel):
@@ -63,12 +68,25 @@ class TraceStep(BaseModel):
     detail: dict | None = None
 
 
+class DocumentCoverage(BaseModel):
+    """How well one document answered a question that was asked across several."""
+
+    document_id: str
+    name: str
+    pages: int
+    sections: int
+    unreadable_pages: int
+    # "sufficient", "partial" (some relevant text, not enough) or "none" (nothing relevant found)
+    evidence: str
+
+
 class Coverage(BaseModel):
     pages: int
     sections: int
     unreadable_pages: int
     rounds: int
     keyword_only: bool
+    documents: list[DocumentCoverage] | None = None
 
 
 class ChatMessage(BaseModel):
@@ -93,4 +111,25 @@ class ChatRequest(BaseModel):
         value = value.strip()
         if not value:
             raise ValueError("Ask a question about the document.")
+        return value
+
+
+class Conversation(BaseModel):
+    """A chat about one document ("single") or several ("multi"). Documents are in the order chosen."""
+
+    id: str
+    kind: Literal["single", "multi"]
+    created_at: str
+    message_count: int = 0
+    documents: list[DocumentSummary]
+
+
+class CreateConversationRequest(BaseModel):
+    document_ids: list[str] = Field(min_length=2)
+
+    @field_validator("document_ids")
+    @classmethod
+    def _unique(cls, value: list[str]) -> list[str]:
+        if len(set(value)) != len(value):
+            raise ValueError("Each document can only be selected once.")
         return value

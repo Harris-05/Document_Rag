@@ -46,21 +46,37 @@ CREATE TABLE IF NOT EXISTS chunks (
 
 CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks (document_id, ordinal);
 
-CREATE TABLE IF NOT EXISTS messages (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
-    role        TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
-    content     TEXT NOT NULL,
-    status      TEXT NOT NULL CHECK (status IN ('complete', 'stopped', 'error')),
-    quality     TEXT,
-    citations   TEXT NOT NULL DEFAULT '[]',
-    trace       TEXT NOT NULL DEFAULT '[]',
-    coverage    TEXT,
-    error_message TEXT,
-    created_at  TEXT NOT NULL
+-- A conversation is a chat about one document ('single') or several ('multi').
+CREATE TABLE IF NOT EXISTS conversations (
+    id         TEXT PRIMARY KEY,
+    kind       TEXT NOT NULL CHECK (kind IN ('single', 'multi')),
+    created_at TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_messages_document ON messages (document_id, id);
+CREATE TABLE IF NOT EXISTS conversation_documents (
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    document_id     TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    position        INTEGER NOT NULL,
+    PRIMARY KEY (conversation_id, document_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_documents_document ON conversation_documents (document_id);
+
+CREATE TABLE IF NOT EXISTS messages (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    role            TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    content         TEXT NOT NULL,
+    status          TEXT NOT NULL CHECK (status IN ('complete', 'stopped', 'error')),
+    quality         TEXT,
+    citations       TEXT NOT NULL DEFAULT '[]',
+    trace           TEXT NOT NULL DEFAULT '[]',
+    coverage        TEXT,
+    error_message   TEXT,
+    created_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages (conversation_id, id);
 
 CREATE INDEX IF NOT EXISTS idx_documents_created ON documents (created_at DESC);
 """
@@ -87,9 +103,39 @@ def connect() -> Iterator[sqlite3.Connection]:
         connection.close()
 
 
-# Bump when the way chunks are built or searched changes. The search index is derived data that is
-# rebuilt on a document's next question, so an old one is simply discarded.
-INDEX_VERSION = 2
+# Version 2 changed how chunks are built, so older search indexes are discarded and rebuilt on a
+# document's next question. Version 3 moved chat messages from "per document" to "per conversation".
+SCHEMA_VERSION = 3
+
+
+def _has_legacy_messages(connection: sqlite3.Connection) -> bool:
+    return "document_id" in [row[1] for row in connection.execute("PRAGMA table_info(messages)")]
+
+
+def _copy_legacy_messages(connection: sqlite3.Connection) -> None:
+    """Each document that had chat history becomes a one-document conversation, history intact."""
+    connection.execute(
+        """
+        INSERT INTO conversations (id, kind, created_at)
+        SELECT 'doc-' || document_id, 'single', MIN(created_at) FROM messages_v2 GROUP BY document_id
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO conversation_documents (conversation_id, document_id, position)
+        SELECT 'doc-' || document_id, document_id, 0 FROM messages_v2 GROUP BY document_id
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO messages (id, conversation_id, role, content, status, quality, citations, trace, coverage,
+                              error_message, created_at)
+        SELECT id, 'doc-' || document_id, role, content, status, quality, citations, trace, coverage,
+               error_message, created_at
+        FROM messages_v2
+        """
+    )
+    connection.execute("DROP TABLE messages_v2")
 
 
 def init_db() -> None:
@@ -98,7 +144,15 @@ def init_db() -> None:
     with connect() as connection:
         connection.execute("PRAGMA journal_mode = WAL")
         stored_version = connection.execute("PRAGMA user_version").fetchone()[0]
-        if stored_version < INDEX_VERSION:
+        if stored_version < 2:
             connection.execute("DROP TABLE IF EXISTS chunks")
+
+        legacy = stored_version < 3 and _has_legacy_messages(connection)
+        if legacy:
+            connection.execute("ALTER TABLE messages RENAME TO messages_v2")
+            connection.execute("DROP INDEX IF EXISTS idx_messages_document")
+
         connection.executescript(SCHEMA)
-        connection.execute(f"PRAGMA user_version = {INDEX_VERSION}")
+        if legacy:
+            _copy_legacy_messages(connection)
+        connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")

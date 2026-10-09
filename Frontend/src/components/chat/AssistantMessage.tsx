@@ -9,6 +9,7 @@ import type { AnswerQuality, Citation, Coverage } from "@/lib/types";
 import { AgentTrace } from "./AgentTrace";
 import { AnswerText } from "./AnswerText";
 import { CitationCard } from "./CitationCard";
+import { DocumentEvidence } from "./DocumentEvidence";
 
 const QUALITY_BADGE: Partial<Record<AnswerQuality, { label: string; className: string }>> = {
   sufficient: { label: "Strong evidence", className: "bg-success-soft text-success" },
@@ -38,6 +39,7 @@ function CoverageLine({ coverage }: { coverage: Coverage }) {
 
 interface AssistantMessageProps {
   message: ChatMessageView;
+  multi: boolean;
   activeCitation: { messageKey: string; n: number } | null;
   onOpenCitation: (messageKey: string, citation: Citation) => void;
   onRetry: (question: string) => void;
@@ -46,6 +48,7 @@ interface AssistantMessageProps {
 
 export function AssistantMessage({
   message,
+  multi,
   activeCitation,
   onOpenCitation,
   onRetry,
@@ -150,12 +153,17 @@ export function AssistantMessage({
                 key={citation.n}
                 id={citationId(citation.n)}
                 citation={citation}
+                multi={multi}
                 active={activeCitation?.messageKey === message.key && activeCitation.n === citation.n}
                 onOpen={(c) => onOpenCitation(message.key, c)}
               />
             ))}
           </ul>
         </section>
+      )}
+
+      {multi && message.coverage?.documents && message.status === "complete" && message.quality !== "not_applicable" && (
+        <DocumentEvidence documents={message.coverage.documents} />
       )}
 
       {message.coverage && message.status === "complete" && message.quality !== "not_applicable" && (

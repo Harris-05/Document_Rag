@@ -8,7 +8,7 @@ from app import repository
 from app.config import get_settings
 from app.db import init_db
 from app.errors import DocumentError
-from app.routers import chat, documents
+from app.routers import chat, conversations, documents
 
 
 @asynccontextmanager
@@ -43,3 +43,4 @@ def health() -> dict[str, str]:
 
 app.include_router(documents.router)
 app.include_router(chat.router)
+app.include_router(conversations.router)

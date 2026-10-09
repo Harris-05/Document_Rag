@@ -2,8 +2,9 @@
 
 import { ArrowLeft, ChatsCircle, FileText, FileX } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChatPane } from "@/components/chat/ChatPane";
+import { documentChatSource } from "@/lib/chatSource";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { FileBadge } from "@/components/upload/FileBadge";
 import { ApiError, getDocumentText } from "@/lib/api";
@@ -35,7 +36,7 @@ export function WorkspaceSkeleton() {
   );
 }
 
-function Notice({ title, message, action }: { title: string; message: string; action: React.ReactNode }) {
+export function Notice({ title, message, action }: { title: string; message: string; action: React.ReactNode }) {
   return (
     <div
       role="alert"
@@ -101,6 +102,7 @@ export function DocumentWorkspace({ id }: { id: string }) {
 function Workspace({ document }: { document: DocumentDetail }) {
   const [view, setView] = useState<MobileView>("chat");
   const [target, setTarget] = useState<ViewerTarget | null>(null);
+  const chatSource = useMemo(() => documentChatSource(document.id), [document.id]);
   const [active, setActive] = useState<{ messageKey: string; n: number } | null>(null);
 
   const openCitation = useCallback((messageKey: string, citation: Citation) => {
@@ -181,7 +183,7 @@ function Workspace({ document }: { document: DocumentDetail }) {
 
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-2">
         <section aria-label="Chat" className={`${paneBase} ${view === "chat" ? "flex" : "hidden"}`}>
-          <ChatPane documentId={document.id} activeCitation={active} onOpenCitation={openCitation} />
+          <ChatPane source={chatSource} activeCitation={active} onOpenCitation={openCitation} />
         </section>
         <section aria-label="Document" className={`${paneBase} ${view === "document" ? "flex" : "hidden"}`}>
           <DocumentViewer document={document} target={target} onStepMatch={stepMatch} />

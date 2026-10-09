@@ -1,6 +1,7 @@
 import { createSseParser } from "./sse";
 import type {
   ChatEvent,
+  Conversation,
   DocumentDetail,
   DocumentSummary,
   ErrorCode,
@@ -105,18 +106,18 @@ export const listMessages = (documentId: string) =>
   request<ServerChatMessage[]>(`/api/documents/${documentId}/messages`);
 
 /**
- * Asks a question and reports each streamed event as it arrives. Aborting the signal closes the
- * connection, which tells the server to stop and keep whatever was generated so far.
+ * Asks a question at a chat endpoint and reports each streamed event as it arrives. Aborting the
+ * signal closes the connection, which tells the server to stop and keep whatever was generated.
  */
-export async function streamChat(
-  documentId: string,
+export async function streamChatAt(
+  path: string,
   question: string,
   onEvent: (event: ChatEvent) => void,
   signal: AbortSignal,
 ): Promise<void> {
   let response: Response;
   try {
-    response = await fetch(`${API_URL}/api/documents/${documentId}/chat`, {
+    response = await fetch(`${API_URL}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question }),
@@ -143,3 +144,29 @@ export async function streamChat(
     throw new ApiError(NETWORK_ERROR);
   }
 }
+
+export const streamDocumentChat = (
+  documentId: string,
+  question: string,
+  onEvent: (event: ChatEvent) => void,
+  signal: AbortSignal,
+) => streamChatAt(`/api/documents/${documentId}/chat`, question, onEvent, signal);
+
+export const streamConversationChat = (
+  conversationId: string,
+  question: string,
+  onEvent: (event: ChatEvent) => void,
+  signal: AbortSignal,
+) => streamChatAt(`/api/conversations/${conversationId}/chat`, question, onEvent, signal);
+
+export const createConversation = (documentIds: string[]) =>
+  request<Conversation>("/api/conversations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ document_ids: documentIds }),
+  });
+export const getConversation = (id: string) => request<Conversation>(`/api/conversations/${id}`);
+export const listConversations = () => request<Conversation[]>("/api/conversations");
+export const deleteConversation = (id: string) => request<void>(`/api/conversations/${id}`, { method: "DELETE" });
+export const listConversationMessages = (id: string) =>
+  request<ServerChatMessage[]>(`/api/conversations/${id}/messages`);

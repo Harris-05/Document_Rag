@@ -5,11 +5,12 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from app import chat_repository, repository
+from app import chat_repository, conversation_repository, repository
 from app.chat_service import stream_chat
 from app.config import get_settings
 from app.dependencies import get_llm
 from app.main import app
+from app.rag.multi_agent import SourceDocument
 from app.rag import prompts
 
 from .conftest import PDF_TYPE, make_text_pdf
@@ -162,13 +163,14 @@ class TestStopping:
     def test_closing_the_stream_keeps_what_was_generated(self, client, document_id):
         llm = llm_for_one_question(answer="A" * 400 + f"\n{prompts.QUOTES_MARKER}\n[]", stream_size=20)
         document = repository.get_detail(document_id)
-        pages = [(p.page_number, p.text) for p in document.pages]
+        source = SourceDocument(document_id, document.filename, [(p.page_number, p.text) for p in document.pages])
+        conversation_id = conversation_repository.ensure_single(document_id)
 
         async def consume_then_stop():
             stream = stream_chat(
-                document_id=document_id,
+                conversation_id=conversation_id,
                 question="Summarise the indemnity",
-                pages=pages,
+                documents=[source],
                 llm=llm,
                 settings=get_settings(),
             )
@@ -182,18 +184,19 @@ class TestStopping:
 
         asyncio.run(consume_then_stop())
 
-        stopped = chat_repository.list_messages(document_id)[-1]
+        stopped = chat_repository.list_messages(conversation_id)[-1]
         assert stopped.status == "stopped"
         assert stopped.content.startswith("AAAA")
         assert 0 < len(stopped.content) < 400
 
     def test_stopped_answers_are_not_fed_back_as_history(self, client, document_id):
-        chat_repository.add_user_message(document_id, "first question")
+        conversation_id = conversation_repository.ensure_single(document_id)
+        chat_repository.add_user_message(conversation_id, "first question")
         chat_repository.add_assistant_message(
-            document_id, content="half an ans", status="stopped", quality=None, citations=[], trace=[], coverage=None
+            conversation_id, content="half an ans", status="stopped", quality=None, citations=[], trace=[], coverage=None
         )
 
-        assert chat_repository.recent_history(document_id) == [("user", "first question")]
+        assert chat_repository.recent_history(conversation_id) == [("user", "first question")]
 
 
 class TestLifecycle:

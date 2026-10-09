@@ -57,7 +57,7 @@ export function Composer({ streaming, disabled, onSend, onStop }: ComposerProps)
           }}
           onKeyDown={handleKeyDown}
           placeholder="Ask about a clause, party, date or figure"
-          className="max-h-42 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 text-[15px] leading-6 text-ink outline-none placeholder:text-ink-subtle"
+          className="no-focus-ring max-h-42 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 text-[15px] leading-6 text-ink outline-none placeholder:text-ink-subtle"
         />
         {streaming ? (
           <button

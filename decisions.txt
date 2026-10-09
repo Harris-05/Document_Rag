@@ -286,3 +286,55 @@ identical to Word. DOCX fit-to-width uses CSS zoom (Chrome, Edge, Safari, Firefo
 pdf.js's legacy build is used because the current build needs very new browser features and failed
 outright on Chrome 138.
 
+
+
+D16. Questions across several documents
+---------------------------------------
+Requirement: select several documents and ask one question; each quote says which document it came
+from; the answer compares rather than listing separate answers; each quote is verified against its
+own document, not the whole set.
+
+Conversations replace "chat per document". Chat history used to hang directly off a document. A
+question across documents has no single owner, so messages now belong to a CONVERSATION, which has an
+ordered list of documents. A one-document chat is simply a conversation with one document (created
+the first time it is needed), so the existing endpoints and behaviour are unchanged. Existing saved
+chats were migrated to one-document conversations on upgrade, history intact. Deleting a document
+removes only the conversations that are left with no documents; a comparison that still has other
+documents keeps its history, and quotes from the deleted document say it was deleted.
+
+Retrieval is per document, not pooled. Pooling every chunk into one ranking lets a long contract
+crowd a short one out of the top results, and a comparison needs evidence from each. Each document is
+searched and ranked on its own and contributes up to CANDIDATES_PER_DOCUMENT passages per round
+(shrunk automatically so the judging call stays small when more documents are chosen). Up to
+MAX_DOCUMENTS_PER_QUESTION (default 5) documents can be compared.
+
+Sufficiency is judged per document. One judging call sees every document's passages grouped under
+its label (D1, D2, ...) and says, for each, whether that document's own passages answer the question.
+A document is never marked sufficient because ANOTHER document answered. Later rounds search only
+the documents that are still short, using what each one was missing. Documents that never produce
+anything relevant are reported plainly ("no relevant passage was found in D2"), as a result of
+searching and not as proof of absence, and the evidence panel shows each document as strong,
+partial, or nothing found. If no document has anything, no answer is generated, as with one document.
+
+The answer compares. The prompt asks for ONE integrated comparison that leads with the headline
+difference or similarity and goes point by point, and forbids a separate summary per document unless
+there is nothing to compare. The general-explanation section works as before.
+
+Attribution is checked by code, per quote. Every quote names a document and an evidence passage.
+The document is taken from the evidence passage. The quote is then searched for in THAT document's
+text only. Consequences that are tested: a sentence that exists in document A but is credited to
+document B fails; a quote whose named document disagrees with its evidence passage fails; a quote
+naming an unknown document fails; identical wording in two documents is verified separately in each
+and produces two citations. Without this, checking against the combined text would let a misattributed
+quote pass, which is exactly the failure a comparison is most likely to produce.
+
+Interface: select documents with checkboxes in the library (the order chosen is the order shown),
+choose Compare, and a comparison page opens with the chat on one side and a tab per document on the
+other. Opening a quote switches to the right document and highlights it on the rendered page, using
+the same viewer as a single document. Saved comparisons are listed on the home page and reopen with
+their history.
+
+Trade-offs: a comparison costs more model time than a single question (one extra judging stage and a
+longer answer prompt), and the cap of five documents keeps it bounded. The single-document loop was
+left untouched and the comparison loop is a separate module that reuses its helpers, so the
+well-tested single-document path could not regress. The cost is some duplicated loop structure.

@@ -218,3 +218,8 @@ body {
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.18), 0 8px 24px -12px rgb(0 0 0 / 0.25);
   margin-bottom: 12px;
 }
+
+/* The composer draws one focus ring around the whole box, so the field inside must not add a second. */
+.no-focus-ring:focus-visible {
+  outline: none;
+}

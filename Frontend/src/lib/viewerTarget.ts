@@ -6,6 +6,8 @@ export interface ViewerTarget {
   /** Changes on every navigation so the same citation can be re-opened and scrolled to again. */
   token: number;
   citationKey: string;
+  /** Which document the quote is in. Only needed when several documents are open. */
+  documentId?: string;
   /** Every place the quote occurs, in document order. */
   matches: CitationRange[][];
   /** Which of `matches` is being shown. */

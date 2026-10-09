@@ -13,9 +13,14 @@ import type { DocumentSummary } from "@/lib/types";
 interface DocumentRowProps {
   document: DocumentSummary;
   onDelete: (id: string) => Promise<string | null>;
+  /** Position in the comparison selection (1 for the first chosen), or null when not selected. */
+  selectedAs: number | null;
+  /** True once the limit is reached, so further documents cannot be added. */
+  selectionFull: boolean;
+  onToggleSelected: (id: string) => void;
 }
 
-export function DocumentRow({ document, onDelete }: DocumentRowProps) {
+export function DocumentRow({ document, onDelete, selectedAs, selectionFull, onToggleSelected }: DocumentRowProps) {
   const reduceMotion = useReducedMotion();
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -47,6 +52,23 @@ export function DocumentRow({ document, onDelete }: DocumentRowProps) {
       className="flex flex-col gap-3 px-4 py-4 sm:px-5"
     >
       <div className="flex items-center gap-3">
+        {!processing && (
+          <label
+            className={`-ml-2 grid size-11 shrink-0 place-items-center rounded-ctl ${
+              selectedAs === null && selectionFull ? "cursor-not-allowed opacity-40" : "cursor-pointer hover:bg-surface-2"
+            }`}
+            title={selectedAs === null && selectionFull ? "The comparison limit has been reached" : "Select to compare"}
+          >
+            <input
+              type="checkbox"
+              checked={selectedAs !== null}
+              disabled={selectedAs === null && selectionFull}
+              onChange={() => onToggleSelected(document.id)}
+              aria-label={`Select ${document.filename} for comparison`}
+              className="size-[18px] cursor-[inherit] accent-[var(--accent)]"
+            />
+          </label>
+        )}
         <FileBadge kind={document.file_kind} />
         <div className="min-w-0 flex-1">
           {processing ? (
@@ -71,6 +93,15 @@ export function DocumentRow({ document, onDelete }: DocumentRowProps) {
             </p>
           )}
         </div>
+        {selectedAs !== null && (
+          <span
+            aria-hidden
+            className="grid size-6 shrink-0 place-items-center rounded-full bg-accent-soft font-mono text-xs font-medium text-accent"
+            title={`Document ${selectedAs} in the comparison`}
+          >
+            {selectedAs}
+          </span>
+        )}
         {!processing && !confirming && (
           <button
             type="button"

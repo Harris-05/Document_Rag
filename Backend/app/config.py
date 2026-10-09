@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     max_retrieval_rounds: int = 3
     candidates_per_round: int = 14
     max_evidence_passages: int = 10
+    # Questions across several documents: how many may be compared at once, and how many passages
+    # are judged per document in each round (kept small so the judging call stays quick).
+    max_documents_per_question: int = Field(default=5, ge=2, le=10)
+    candidates_per_document: int = Field(default=8, ge=3, le=20)
     # Neighbouring chunks added around each strongly relevant passage so a clause is read whole.
     neighbor_chunks: int = Field(default=1, ge=0, le=3)
     chunk_target_chars: int = 1100
