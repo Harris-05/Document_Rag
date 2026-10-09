@@ -24,6 +24,7 @@ const ERROR_PRESENTATION: Record<ErrorCode, { title: string; icon: Icon }> = {
   CORRUPT_FILE: { title: "This file couldn't be read", icon: FileX },
   INTERRUPTED: { title: "Processing was interrupted", icon: Warning },
   NETWORK: { title: "Can't reach the server", icon: CloudSlash },
+  AI_NOT_CONFIGURED: { title: "The AI provider is not set up", icon: Warning },
   INTERNAL: { title: "Something went wrong", icon: Warning },
   UNKNOWN: { title: "Something went wrong", icon: Warning },
 };

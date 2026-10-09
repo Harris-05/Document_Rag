@@ -1,7 +1,10 @@
+import { createSseParser } from "./sse";
 import type {
+  ChatEvent,
   DocumentDetail,
   DocumentSummary,
   ErrorCode,
+  ServerChatMessage,
   UserFacingError,
 } from "./types";
 
@@ -93,4 +96,47 @@ export function uploadDocument(
     signal?.addEventListener("abort", () => xhr.abort(), { once: true });
     xhr.send(body);
   });
+}
+
+export const listMessages = (documentId: string) =>
+  request<ServerChatMessage[]>(`/api/documents/${documentId}/messages`);
+
+/**
+ * Asks a question and reports each streamed event as it arrives. Aborting the signal closes the
+ * connection, which tells the server to stop and keep whatever was generated so far.
+ */
+export async function streamChat(
+  documentId: string,
+  question: string,
+  onEvent: (event: ChatEvent) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/api/documents/${documentId}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+      signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    throw new ApiError(NETWORK_ERROR);
+  }
+  if (!response.ok) throw new ApiError(await parseError(response), response.status);
+  if (!response.body) throw new ApiError({ code: "UNKNOWN", message: "The server sent an empty response." });
+
+  const parser = createSseParser((frame) => onEvent(frame as unknown as ChatEvent));
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parser.push(decoder.decode(value, { stream: true }));
+    }
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    throw new ApiError(NETWORK_ERROR);
+  }
 }

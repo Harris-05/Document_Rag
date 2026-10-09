@@ -144,3 +144,14 @@ body {
   content-visibility: auto;
   contain-intrinsic-size: auto 900px;
 }
+
+/* A quote highlighted in the document after clicking a citation. */
+.cite-mark {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  color: inherit;
+  border-radius: 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  padding: 1px 0;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent);
+}

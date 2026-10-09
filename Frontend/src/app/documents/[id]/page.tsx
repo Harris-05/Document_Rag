@@ -1,22 +1,22 @@
 import { Suspense } from "react";
 import { Header } from "@/components/layout/Header";
-import { DocumentReader, ReaderSkeleton } from "@/components/reader/DocumentReader";
+import { DocumentWorkspace, WorkspaceSkeleton } from "@/components/document/DocumentWorkspace";
 
-async function Reader({ params }: { params: PageProps<"/documents/[id]">["params"] }) {
+async function Workspace({ params }: { params: PageProps<"/documents/[id]">["params"] }) {
   const { id } = await params;
-  return <DocumentReader id={id} />;
+  return <DocumentWorkspace id={id} />;
 }
 
 export default function DocumentPage({ params }: PageProps<"/documents/[id]">) {
   return (
-    <>
+    <div className="flex h-dvh flex-col">
       <Header />
-      <main className="mx-auto w-full max-w-4xl px-4 pb-20 pt-8 sm:px-6 lg:px-10">
+      <main className="mx-auto min-h-0 w-full max-w-[1600px] flex-1 px-4 pb-4 pt-4 sm:px-6 lg:px-8">
         {/* Route params are resolved inside Suspense so the rest of the page can prerender. */}
-        <Suspense fallback={<ReaderSkeleton />}>
-          <Reader params={params} />
+        <Suspense fallback={<WorkspaceSkeleton />}>
+          <Workspace params={params} />
         </Suspense>
       </main>
-    </>
+    </div>
   );
 }

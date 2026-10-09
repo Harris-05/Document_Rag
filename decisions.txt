@@ -1,0 +1,238 @@
+DECISIONS
+=========
+
+A running record of the design decisions behind Marginalia, why each was made, what was
+rejected, and what it costs. Newest decisions are at the bottom. The README summarises them;
+this file is the full reasoning.
+
+Guiding principle: in contract analysis a wrong answer is far worse than a slow one. Where
+accuracy and speed conflict, accuracy wins, and every answer must be checkable by the reader.
+
+
+D1. Backend/frontend split: FastAPI + Next.js
+---------------------------------------------
+Decision: Python (FastAPI) owns ingestion, retrieval, the LLM loop and verification. Next.js
+(React, TypeScript) is a thin client.
+Why: the document and retrieval tooling (pypdf, LangChain loaders, BM25, numpy) lives in Python,
+and keeping all logic in one service means quote verification cannot be bypassed by the client.
+Cost: two deployables instead of one.
+
+
+D2. Text extraction: LangChain PyPDFLoader / Docx2txtLoader, page by page
+-------------------------------------------------------------------------
+Decision: PDFs are read one page at a time with PyPDFLoader.lazy_load(); DOCX with Docx2txtLoader.
+Why: page-at-a-time reading gives real progress ("page 34 of 150") and keeps page numbers, which
+citations need later. The real file type is checked from the bytes, not the filename.
+Known limit: langchain-community is in maintenance mode (it prints a sunset warning). The loader
+usage is isolated in extraction.py so it can be swapped for pypdf directly without touching the rest.
+
+
+D3. Uploads are processed in a background job and the UI polls
+--------------------------------------------------------------
+Decision: POST /documents returns 202 immediately; a background task extracts text and updates
+progress in SQLite; the client polls the document every ~350 ms.
+Why: survives page refreshes (the library shows in-flight documents), and a server restart marks
+orphaned jobs as failed instead of leaving them "processing" forever. Simpler and more robust than
+holding one long streaming request open.
+Rejected: streaming the upload response (loses state on refresh); websockets (more moving parts).
+
+
+D4. Documents with no readable text are rejected, not stored
+------------------------------------------------------------
+Decision: if the extracted text has fewer than MIN_TEXT_CHARS meaningful characters the document is
+marked failed with a specific message ("probably a scan"), the stored file is deleted, and it never
+appears in the library. A PDF where only SOME pages are empty is accepted but flagged with the
+number of unreadable pages.
+Why: saving an empty document and calling it a success is the exact failure the brief warns about,
+and partly-scanned contracts must not silently look fully searchable.
+
+
+D5. SQLite for persistence
+--------------------------
+Decision: one SQLite file (WAL mode) for documents, pages, chunks and chat messages.
+Why: zero-ops, transactional, enough for a single-user tool. Page text is stored per page so
+citations can point at a page and character range.
+Cost: not horizontally scalable; swap for Postgres if multi-user is ever needed.
+
+
+D6. Chat uses AGENTIC (corrective) RAG, not single-shot retrieval
+-----------------------------------------------------------------
+Decision: each question runs a loop, with accuracy prioritised over latency:
+
+  1. QUERY GENERATION  The LLM rewrites the user's question (using recent conversation) into 1-3
+                       search queries phrased the way contract text is phrased. It also flags
+                       off-topic messages so they are never "answered from the document".
+  2. RETRIEVAL         Hybrid search over every chunk of the document: BM25 (exact legal terms,
+                       numbers, defined terms) plus embeddings (paraphrase and synonyms), merged
+                       with Reciprocal Rank Fusion.
+  3. QUALITY GRADING   The LLM acts as a strict judge. Each retrieved passage is scored
+                       0 (irrelevant) / 1 (related) / 2 (directly answers), and the judge states
+                       whether the relevant passages together are SUFFICIENT to answer, and if
+                       not, what is missing.
+  4. CORRECT           If retrieval is not sufficient and rounds remain (default cap: 3), the LLM
+                       writes NEW queries targeting what was missing, and we retrieve again.
+                       Relevant passages accumulate across rounds.
+  5. AUGMENT           Only passages the judge accepted are placed in the answer prompt.
+                       Irrelevant text never reaches the generator.
+  6. GENERATE          The answer is streamed with numbered citations plus verbatim quotes.
+  7. VERIFY            Every quote is located in the real document text by our own code
+                       (see D8). Unfound quotes are shown as UNVERIFIED, never as genuine.
+
+Why: legal questions are often phrased differently from the clause that answers them ("can they
+walk away?" vs "termination for convenience"), so one retrieval pass misses. Grading before
+generating means the model is not asked to answer from weak evidence, which is the main source of
+confident wrong answers. Extra LLM calls cost seconds, which is acceptable here.
+Rejected:
+  - Plain top-k RAG: fast, but silently answers from whatever it happened to retrieve.
+  - Stuffing the whole document into the prompt: does not fit for long contracts, and long-context
+    models still miss clauses in the middle.
+  - LangGraph for the loop: a hand-written async loop was chosen because streaming progress
+    events, client cancellation and unit-testing with a scripted fake LLM are all simpler when the
+    control flow is plain Python. The loop is small enough to read top to bottom.
+
+
+D7. When retrieval never becomes good enough, the app says so
+-------------------------------------------------------------
+Decision: if the judge still finds no sufficient evidence after the round cap, the answer is a fixed
+template (no LLM call), not generated prose. It states what was searched, and phrases the result as
+"no passage was found" rather than "the contract does not contain". If the evidence is only partly
+relevant, the answer is generated with an instruction to state what the document does not cover,
+and the interface labels it "Partial evidence".
+Why: a retrieval system can only prove it searched, not that something is absent. The brief calls
+a confident "that clause does not exist" the worst possible output. Pages with no readable text are
+reported alongside, because they were not searchable.
+
+
+D8. Quote verification is done by our code, tolerant of extraction noise
+------------------------------------------------------------------------
+Decision: the model's quotes are never trusted, and neither are any page or position it reports.
+Each quote is searched for in the stored document text after normalising BOTH sides:
+  - whitespace runs (including newlines) collapse to one space
+  - curly quotes/apostrophes and the various dashes map to plain ASCII
+  - Unicode compatibility forms (ligatures such as "fi", non-breaking spaces) are folded
+  - case is ignored
+  - a second pass also repairs words hyphenated across a line break ("indem-\nnify")
+  - an ellipsis inside a quote splits it into segments that must each appear, in order
+Matching runs over the whole document joined across pages, so a quote that crosses a page break is
+found. Matches are mapped back to ORIGINAL character offsets, which is what makes highlighting
+possible. If a quote occurs more than once, the occurrence on the page the model cited is
+preferred, and the count is reported.
+Where it can still fail: a quote that rewords even one word is (correctly) rejected; text that
+extraction itself garbles (tables, multi-column layout read out of order) may cause genuine quotes
+to fail; scanned pages have no text to verify against; very short quotes (< 8 characters) are not
+accepted as proof because they match almost anywhere.
+
+
+D9. The index is built on first use, not at upload
+--------------------------------------------------
+Decision: chunking and embedding happen the first time a document is queried and are then cached
+in SQLite. Chunks never cross a page boundary, so every chunk has an exact page.
+Why: upload stays fast and keeps working without an AI key; a failed embedding call degrades the
+search to keyword-only (and says so in the trace) instead of failing the document.
+Cost: the first question on a large document pays the indexing time.
+
+
+D10. Provider-agnostic LLM layer with an injectable client
+----------------------------------------------------------
+Decision: the agent talks to a small LLMClient interface (JSON completion, streamed completion,
+embeddings). The OpenAI-compatible implementation reads key, base URL and model names from
+environment variables. Tests inject a scripted fake.
+Why: lets the whole retrieval-grade-correct loop be tested deterministically without network calls
+or cost, and keeps the provider swappable.
+Structured output uses JSON mode plus Pydantic validation (works across OpenAI-compatible
+providers) instead of provider-specific schema features.
+
+
+D11. Streaming, stopping, and history
+-------------------------------------
+Decision: POST /documents/{id}/chat streams Server-Sent-Event style frames: "step" (what the agent
+is doing), "token" (answer text), "citations", "done", "error". Closing the connection stops the
+run; whatever was generated is saved with status "stopped". One conversation thread per document,
+stored in SQLite and reloaded when the document is reopened.
+Why: the brief asks for visible progress rather than a spinner, and for partial answers to be
+kept when the user stops.
+
+
+D12. Short-term memory: a configurable window plus follow-up resolution
+-----------------------------------------------------------------------
+Decision: the last CHAT_MEMORY_TURNS question/answer exchanges (default 6, 0 disables, max 20) are
+shown to the model, with earlier answers cut to CHAT_MEMORY_CHARS characters. The first agent step
+also rewrites the user's latest message into a STANDALONE question ("What does it cover?" becomes
+"What losses does the Supplier's indemnity cover?"). That resolved question, not the raw follow-up,
+is what the relevance judge and the answer step receive. The user's own wording is still passed to
+the answer step so nothing they said is lost.
+Why: passing history only to the query step is not enough. A judge that sees "what does it cover?"
+cannot tell which passages are relevant, so follow-ups would be graded and answered blind.
+Only COMPLETED answers are remembered. A stopped or failed answer is partial or wrong, and feeding
+it back as context would let it leak into later answers.
+Cost: one more field in the first LLM call (no extra call). Memory is bounded, so cost per question
+does not grow with conversation length. If the rewrite is empty or missing, the original wording is
+used, so memory failures degrade to the previous behaviour rather than breaking the question.
+Known limit: the rewrite is made by the model, so a badly ambiguous follow-up can be resolved
+wrongly. The resolved question is not currently shown in the interface.
+
+
+D13. Perceived latency: stream everything, hide what can be hidden, keep the accuracy steps
+-----------------------------------------------------------------------------------------
+Measured on a 150-page document, the answer text already streamed token by token. The waits were
+elsewhere, so the fixes target those:
+  - Before the first token: the plan, search, judge (and any refine) calls run one after another.
+    This is the cost of D6 and is kept on purpose. Two things were overlapped: loading or building
+    the search index now runs WHILE the model plans the queries (it hid most of the one-off embedding
+    time on a first question), and the judge is asked to list only the relevant passages instead of
+    scoring all of them, which shortens its output and so its time.
+  - After the last answer token: the model writes the quotes list, then the quotes are verified.
+    Nothing visibly changed during this phase, so the answer looked stuck. It now reports
+    "Collecting the quotes that support the answer", and verification costs about 30 ms because the
+    document text is normalised in a background thread from the start of the request.
+  - Uneven delivery: providers often send text in bursts. The interface reveals streamed text at a
+    steady pace that speeds up with the backlog, so it never lags the stream by more than a moment.
+    People who prefer reduced motion see text as it arrives.
+What was deliberately NOT done: skipping the judge, answering before retrieval is graded, or
+showing an unverified answer first and correcting it later. Those would feel faster and would
+undercut the accuracy guarantee. If time to first token still matters, the next option is a smaller,
+faster model for the planning and judging calls only, behind its own setting.
+
+
+D14. Better recall on plain clauses, and explanations that go beyond the quoted text
+------------------------------------------------------------------------------------
+Problems found: easy clauses (governing law, notices, termination) were being missed, answers could
+only echo the evidence, and every model call was fixed at a very low temperature.
+
+Retrieval changes (why easy clauses were missed):
+  - Keyword search now stems words and drops filler words, so "terminate" matches "termination" and
+    "terminated". Very short words are not stemmed, because stemming turns "AED" into "a".
+  - Each chunk carries the section heading it sits under ("12. Termination"), found by a heading
+    detector that rejects ordinary sentences. The heading is searched and embedded with the chunk, so
+    a clause is found by its title even when its own wording never uses the title's words.
+  - The user's whole question is searched alongside the planner's queries, and the planner writes up
+    to 4 deliberately different queries (formal wording, section-heading wording, synonyms).
+  - BM25Okapi was replaced by BM25Plus. Okapi gives a term zero weight when it appears in half the
+    chunks, which silently broke keyword search on short contracts. A document smaller than the
+    candidate window is now handed to the judge whole.
+  - 14 passages are judged per round (was 10) and up to 10 can be used (was 8).
+  - The judge was told to be "strict" and to reject anything that did not fully answer. It is now
+    asked to be fair: short standard clauses count as direct answers, a section heading counts as
+    evidence of relevance, and "sufficient" means the substance is covered, not every detail.
+  - The chunks on either side of each strongly relevant passage are added to the answer prompt,
+    marked as context, so a clause that runs across a chunk boundary is read whole.
+
+Explanation beyond the context:
+  The answer now has two clearly separated parts. FACTS ABOUT THE CONTRACT still come only from the
+  evidence and still need a citation and a verified quote. After them the model may add a short
+  "General explanation (not from the document)" using general legal knowledge: what a term means,
+  why a clause matters in practice. It carries no citations, may not assert anything about this
+  contract, and is shown in a separate callout so it cannot be mistaken for document content.
+  This replaces the earlier rule that forbade any outside knowledge. The accuracy guarantee is
+  unchanged for claims about the contract, because those are what the quote verification checks.
+  Cost: the explanation is the model's own knowledge and is not verified. It is labelled for that
+  reason, and is left out of simple lookups.
+
+Temperatures:
+  Fixed values are replaced by one setting per stage: plan 0.3 (varied search wording helps the
+  refine step avoid repeating itself), judge 0.1 (grading should be steady), answer 0.4 (natural
+  explanations). Some models reject any temperature but their default; that error is detected, the
+  call is retried without a temperature, and the result is remembered so it happens once.
+  The search index format changed, so existing indexes are discarded on startup and rebuilt on each
+  document's next question. Documents and conversations are untouched.
+

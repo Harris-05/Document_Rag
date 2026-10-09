@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 DocumentStatus = Literal["processing", "ready", "failed"]
 FileKind = Literal["pdf", "docx"]
@@ -36,3 +36,58 @@ class DocumentDetail(DocumentSummary):
 class ErrorBody(BaseModel):
     code: str
     message: str
+
+
+class CitationRange(BaseModel):
+    page: int
+    start: int
+    end: int
+
+
+class Citation(BaseModel):
+    n: int
+    quote: str
+    verified: bool
+    page: int | None
+    ranges: list[CitationRange]
+    occurrences: int
+
+
+class TraceStep(BaseModel):
+    kind: str
+    round: int | None = None
+    text: str
+    detail: dict | None = None
+
+
+class Coverage(BaseModel):
+    pages: int
+    sections: int
+    unreadable_pages: int
+    rounds: int
+    keyword_only: bool
+
+
+class ChatMessage(BaseModel):
+    id: int
+    role: Literal["user", "assistant"]
+    content: str
+    status: Literal["complete", "stopped", "error"]
+    quality: str | None
+    citations: list[Citation]
+    trace: list[TraceStep]
+    coverage: Coverage | None
+    error_message: str | None
+    created_at: str
+
+
+class ChatRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("question")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Ask a question about the document.")
+        return value
