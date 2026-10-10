@@ -52,3 +52,14 @@ def test_a_call_with_missing_fields_does_not_crash():
     client, _ = client_returning(completion("", [tool_call("c1", None, None)]))
     turn = asyncio.run(client.tool_completion([], []))
     assert (turn.tool_calls[0].name, turn.tool_calls[0].arguments) == ("", "")
+
+
+def test_a_project_without_model_access_gets_an_actionable_message():
+    import httpx
+    from openai import PermissionDeniedError
+
+    from app.rag.llm import _translate
+
+    response = httpx.Response(403, request=httpx.Request("POST", "https://api.openai.com/v1/embeddings"))
+    message = _translate(PermissionDeniedError("no access", response=response, body=None)).message
+    assert "project" in message and "OPENAI_EMBEDDING_MODEL" in message

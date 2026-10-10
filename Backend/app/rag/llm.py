@@ -17,6 +17,7 @@ from openai import (
     BadRequestError,
     NotFoundError,
     OpenAIError,
+    PermissionDeniedError,
     RateLimitError,
 )
 
@@ -68,6 +69,12 @@ def _translate(error: Exception) -> LLMError:
         return LLMError("The AI provider rejected the API key. Check OPENAI_API_KEY in Backend/.env.")
     if isinstance(error, RateLimitError):
         return LLMError("The AI provider is rate limiting requests or the quota is used up. Try again shortly.")
+    if isinstance(error, PermissionDeniedError):
+        return LLMError(
+            "The API key's OpenAI project is not allowed to use this model. In the OpenAI dashboard, open "
+            "the project's settings, then Limits, and allow the model (for embeddings, "
+            "text-embedding-3-small), or set OPENAI_EMBEDDING_MODEL to one the project can use."
+        )
     if isinstance(error, NotFoundError):
         return LLMError("The configured AI model was not found. Check OPENAI_MODEL in Backend/.env.")
     if isinstance(error, APITimeoutError):

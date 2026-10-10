@@ -53,11 +53,16 @@ export function Workspace() {
   const removeDocument = useCallback(
     async (id: string) => {
       const failure = await remove(id);
+      // The upload panel keeps the document it just handled ("Open document", "Upload another").
+      // If that is the one that was deleted, it must not keep offering it.
+      if (!failure && upload.state.phase !== "idle" && "document" in upload.state && upload.state.document.id === id) {
+        upload.cancel();
+      }
       // Deleting a document can remove chats and comparisons that depended on it.
       await Promise.all([chats.refresh(), versions.refresh()]);
       return failure;
     },
-    [remove, chats, versions],
+    [remove, chats, versions, upload],
   );
 
   const compare = useCallback(async () => {
