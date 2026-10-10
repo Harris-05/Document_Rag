@@ -464,7 +464,9 @@ argument and the attribution checks of D16 would have to be repeated for it); th
 combination instead of quietly falling back. The chosen mode is remembered per browser.
 
 Limits: the tool-calling path of the real OpenAI client is covered by tests with the SDK stubbed, but
-it has not been run against a live key, so how well a real small model chooses tools is unverified.
+it was first written without a live key. It has since been run against the real configured model on three
+slide decks (see D21): the model used the tools and answered, but small models still sometimes skip tools
+or cite without quoting, which the checks above and D21 absorb. It has not been tried on long real contracts.
 Models that ignore tool_choice or return arguments in odd shapes are handled by the checks above, at
 the cost of extra rounds.
 
