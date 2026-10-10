@@ -505,3 +505,63 @@ Testing limits, stated plainly: export is tested end to end, including opening t
 Word files. Voice is tested in a real browser with a stand-in for the recogniser (headless Chrome has
 no microphone), which checks everything the app does around it but NOT how accurately real speech is
 recognised. That has not been tried with a real microphone.
+
+
+D20. Landing page, one visual theme, light only
+A public landing page now lives at "/" and the working app moved to "/app" (documents, conversations and
+comparisons keep their routes). The landing page explains the product to the person who would use it:
+an animated hero, a scroll-driven "how it works", who it is for, a second call to action, a footer.
+  - Look: a quiet grey hero with slow movement and a white page below with black text, taken from a
+    reference the owner supplied. The first attempt used an indigo/violet/teal hero; it was dropped as
+    too loud for a tool used by professionals. The same neutral theme (ink on white, hairlines, pill
+    buttons, thin tracked labels) now runs through the whole app.
+  - Light only. Dark mode was removed so the landing page and the app always match and every screen has
+    one appearance to test. Trade-off: people who prefer a dark interface do not get one.
+  - Motion respects "reduce motion": movement is dropped and only fades remain. It is applied in one
+    place (MotionConfig) because branching on the setting inside components made the server and browser
+    render different HTML (a React hydration error that also risked leaving hero text invisible).
+  - The navigation is a pill that drops in once the hero's own navigation has scrolled away.
+  - The product pictures on the page are drawings of the app, not screenshots, so they do not go stale
+    when the interface changes. No testimonials, customer logos or statistics are shown: none exist.
+  - Library page: upload on top, then one tabbed history (Documents, Questions across documents, Version
+    comparisons) with a file-name search, instead of three stacked lists. Behaviour and data are unchanged.
+  - Navigation: one element that changes shape on scroll (open centred bar at the top, single-row pill
+    after), not two. The box resizes continuously and its contents fade in at their new places, because
+    sliding the wordmark and links to new positions made them cross. Corner radius and shadow are animated
+    through Motion so they are not stretched while it resizes. The hero background uses soft gradients
+    instead of blur filters and blend modes, which were repainted every frame and made the change stutter.
+  - Chat page decluttered: the answer leads; quotes are one list (not a stack of boxed cards) with a clear
+    verified / not-found state; "how this was answered" and Export share one quiet footer; the "searched N
+    sections" line moved inside the disclosure; the question box holds the Standard/Research switch,
+    microphone and send in one toolbar. The Research explanation shows only when Research is selected.
+  - Found by the production build, not the dev server: reading the current path in a client component
+    needs a Suspense boundary on the dynamic pages. The header now renders its static parts on the server.
+
+
+D21. The assistant works on any document, not only contracts
+Found by using it on real files: lecture slides on cybersecurity were refused ("I can only answer
+questions about this document. Ask about a clause, a party...") with no search at all. Every prompt
+was written for "one uploaded legal contract", so the planning step judged a question about the
+document's own subject as unrelated to a contract and gave up before looking.
+  - Prompts are now document-neutral. The planner and the research step are told the document's name and
+    how it begins, and may only treat a greeting, thanks or small talk as off-topic. Any question about a
+    subject, term or process is searched, and the answer says plainly when the document does not cover it.
+    A single word ("malware") is a request to find it.
+  - A refused turn is left out of the conversation history, with the question that got it. Shown back to
+    the model as an earlier reply it made the model refuse the next question too, so existing chats
+    that had been refused kept being refused after the prompts were fixed.
+  - Citations: models often cite with the internal evidence label ("[E2]") and may write no quote list. The
+    answer is renumbered as it streams ([E2] becomes [1], in order of first use) and the model's quotes are
+    attached by evidence label. A citation still without a quote triggers one short follow-up call that asks
+    for just those quotes. Every quote, however it was obtained, is still checked word for word against the
+    document by code, so an invented quote is still reported as not found. The follow-up is a model call
+    only when needed.
+  - Quote matching ignores two kinds of difference that carry no meaning: a full stop or comma the model added
+    at either end of a quote, and the style of quotation mark (a phrase in double quotes copied back in single
+    quotes). A changed word, or punctuation inside the quote, is still not found.
+  - The three answer paths (standard, research, several documents) each had a copy of the streaming loop;
+    they now share one, so a fix like this applies to all of them.
+  - Checked with the real model on three real slide decks (10 questions, standard and research mode): none
+    refused, no stray labels, 28 of 29 citations verified. Not checked: other kinds of document, other models
+    than the one configured, and very long documents.
+

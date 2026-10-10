@@ -11,7 +11,7 @@ const PRESENTATION = {
 export function DocumentEvidence({ documents }: { documents: DocumentCoverage[] }) {
   return (
     <section aria-label="Evidence by document" className="flex flex-col gap-2">
-      <h3 className="text-[13px] font-medium text-ink-muted">Evidence by document</h3>
+      <h3 className="text-[11px] uppercase tracking-[0.18em] text-ink-subtle">Evidence by document</h3>
       <ul className="flex flex-col gap-1.5">
         {documents.map((document, index) => {
           const { label, icon: Icon, className, weight } = PRESENTATION[document.evidence];

@@ -1,10 +1,10 @@
 "use client";
 
-import { ArrowLeft, ChatsCircle, FileText, FileX } from "@phosphor-icons/react";
-import Link from "next/link";
+import { ChatsCircle, FileText, FileX } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChatPane } from "@/components/chat/ChatPane";
 import { documentChatSource } from "@/lib/chatSource";
+import { Crumb } from "@/components/layout/Crumb";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { FileBadge } from "@/components/upload/FileBadge";
 import { ApiError, getDocumentText } from "@/lib/api";
@@ -81,7 +81,7 @@ export function DocumentWorkspace({ id }: { id: string }) {
       <Notice
         title="Document not found"
         message="It may have been deleted, or it may still be processing. Head back to the library to see what is available."
-        action={<LinkButton href="/">Back to library</LinkButton>}
+        action={<LinkButton href="/app">Back to library</LinkButton>}
       />
     );
   }
@@ -127,32 +127,32 @@ function Workspace({ document }: { document: DocumentDetail }) {
     });
   }, []);
 
-  const paneBase = "min-h-0 flex-1 flex-col overflow-hidden rounded-card border border-line bg-surface shadow-card lg:flex";
+  const paneBase =
+    "min-h-0 flex-1 flex-col overflow-hidden rounded-card border border-line bg-surface shadow-card lg:flex";
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <Link
-          href="/"
-          className="-ml-2 flex min-h-11 items-center gap-2 rounded-ctl px-2 text-sm text-ink-muted transition-colors hover:text-ink"
-        >
-          <ArrowLeft size={16} aria-hidden />
-          Library
-        </Link>
+        <Crumb />
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <FileBadge kind={document.file_kind} size={36} />
           <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold tracking-tight text-ink" title={document.filename}>
+            <h1 className="truncate text-[15px] font-medium tracking-tight text-ink" title={document.filename}>
               {document.filename}
             </h1>
-            <p className="flex flex-wrap gap-x-3 text-xs text-ink-subtle">
-              {document.page_count !== null && (
-                <span>
-                  {formatCount(document.page_count)} {document.page_count === 1 ? "page" : "pages"}
+            <p className="mt-1 flex flex-wrap gap-1.5 text-[11px] text-ink-muted">
+              {[
+                document.file_kind === "pdf" ? "PDF" : "Word",
+                ...(document.page_count !== null
+                  ? [`${formatCount(document.page_count)} ${document.page_count === 1 ? "page" : "pages"}`]
+                  : []),
+                `${formatCount(document.word_count)} words`,
+                formatBytes(document.size_bytes),
+              ].map((chip) => (
+                <span key={chip} className="rounded-full bg-surface-2 px-2.5 py-0.5">
+                  {chip}
                 </span>
-              )}
-              <span>{formatCount(document.word_count)} words</span>
-              <span>{formatBytes(document.size_bytes)}</span>
+              ))}
             </p>
           </div>
         </div>

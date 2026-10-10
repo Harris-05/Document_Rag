@@ -11,9 +11,9 @@ import { AssistantMessage } from "./AssistantMessage";
 import { Composer } from "./Composer";
 
 const SUGGESTIONS = [
-  "What are the termination provisions?",
-  "Is liability capped, and at what amount?",
-  "Which law governs this agreement?",
+  "What is this document about?",
+  "What are the key points?",
+  "Which terms or figures does it define?",
 ];
 
 const STICK_THRESHOLD_PX = 140;
@@ -43,13 +43,13 @@ function EmptyChat({ onPick, disabled }: { onPick: (question: string) => void; d
   return (
     <div className="flex h-full flex-col justify-center gap-6 py-8">
       <div className="flex flex-col gap-3">
-        <span className="grid size-12 place-items-center rounded-card bg-accent-soft text-accent">
-          <ChatsCircle size={26} weight="duotone" aria-hidden />
+        <span className="grid size-12 place-items-center rounded-full bg-surface-2 text-ink">
+          <ChatsCircle size={24} aria-hidden />
         </span>
-        <h2 className="text-xl font-semibold tracking-tight text-ink">Ask about this contract</h2>
+        <h2 className="text-2xl font-light uppercase leading-tight tracking-tight text-ink">Ask about this document</h2>
         <p className="max-w-[44ch] text-[15px] leading-relaxed text-ink-muted">
-          Answers come only from this document, and every quote is checked against its text before it is shown
-          as verified.
+          Answers come only from this document, and every quote is checked against its text before it is shown as
+          verified.
         </p>
       </div>
       <ul className="flex flex-col items-start gap-2">
@@ -59,7 +59,7 @@ function EmptyChat({ onPick, disabled }: { onPick: (question: string) => void; d
               type="button"
               disabled={disabled}
               onClick={() => onPick(suggestion)}
-              className="min-h-11 cursor-pointer rounded-ctl border border-line bg-surface px-4 py-2 text-left text-sm text-ink transition-[background-color,border-color,transform] duration-150 hover:border-line-strong hover:bg-surface-2 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
+              className="min-h-11 cursor-pointer rounded-full border border-line bg-surface px-5 py-2 text-left text-sm text-ink transition-[background-color,border-color,transform] duration-150 hover:border-line-strong hover:bg-surface-2 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
             >
               {suggestion}
             </button>
@@ -81,8 +81,7 @@ export function ChatPane({ source, multi = false, activeCitation, onOpenCitation
   const handleScroll = useCallback(() => {
     const element = scroller.current;
     if (!element) return;
-    stickToBottom.current =
-      element.scrollHeight - element.scrollTop - element.clientHeight < STICK_THRESHOLD_PX;
+    stickToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < STICK_THRESHOLD_PX;
   }, []);
 
   // Follow new content only while the reader is already at the bottom; never yank them back down.
@@ -103,6 +102,12 @@ export function ChatPane({ source, multi = false, activeCitation, onOpenCitation
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-[61px] shrink-0 items-center justify-between gap-3 border-b border-line px-4 sm:px-6">
+        <h2 className="text-[11px] uppercase tracking-[0.22em] text-ink-muted">Assistant</h2>
+        <p className="truncate text-xs text-ink-subtle">
+          {multi ? "Answers cite these documents only" : "Answers cite this document only"}
+        </p>
+      </div>
       <div
         ref={scroller}
         onScroll={handleScroll}
@@ -133,7 +138,7 @@ export function ChatPane({ source, multi = false, activeCitation, onOpenCitation
             {chat.messages.map((message) => (
               <li key={message.key} className="flex flex-col">
                 {message.role === "user" ? (
-                  <p className="ml-auto max-w-[85%] whitespace-pre-wrap rounded-card bg-accent-soft px-4 py-2.5 text-[15px] leading-relaxed text-ink">
+                  <p className="ml-auto max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-accent px-4 py-2.5 text-[15px] leading-relaxed text-accent-ink">
                     {message.content}
                   </p>
                 ) : (
@@ -152,7 +157,7 @@ export function ChatPane({ source, multi = false, activeCitation, onOpenCitation
         )}
       </div>
 
-      <div className="border-t border-line bg-bg/60 px-4 py-4 sm:px-6">
+      <div className="px-4 pb-4 pt-2 sm:px-6">
         <Composer
           streaming={chat.streaming}
           disabled={chat.history !== "ready"}

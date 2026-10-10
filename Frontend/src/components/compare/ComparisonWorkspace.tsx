@@ -1,12 +1,12 @@
 "use client";
 
-import { ArrowLeft, ArrowsLeftRight, FileText, ListChecks } from "@phosphor-icons/react";
-import Link from "next/link";
+import { ArrowsLeftRight, FileText, ListChecks } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { DocumentTabs } from "@/components/document/DocumentTabs";
 import { DocumentViewer } from "@/components/document/DocumentViewer";
 import { Notice, WorkspaceSkeleton } from "@/components/document/DocumentWorkspace";
+import { Crumb } from "@/components/layout/Crumb";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { useComparison } from "@/hooks/useComparison";
 import { useDocumentTexts } from "@/hooks/useDocumentTexts";
@@ -41,7 +41,7 @@ export function ComparisonWorkspace({ id }: { id: string }) {
       <Notice
         title="Comparison not found"
         message="It may have been deleted, or one of its documents may have been removed."
-        action={<LinkButton href="/">Back to library</LinkButton>}
+        action={<LinkButton href="/app">Back to library</LinkButton>}
       />
     );
   }
@@ -73,7 +73,7 @@ export function ComparisonWorkspace({ id }: { id: string }) {
             <Button onClick={runAgain} disabled={retrying}>
               {retrying ? "Starting" : "Run it again"}
             </Button>
-            <LinkButton href="/" variant="secondary">
+            <LinkButton href="/app" variant="secondary">
               Back to library
             </LinkButton>
           </div>
@@ -144,13 +144,7 @@ function Review({ comparison }: { comparison: ComparisonDetail }) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <Link
-          href="/"
-          className="-ml-2 flex min-h-11 items-center gap-2 rounded-ctl px-2 text-sm text-ink-muted transition-colors hover:text-ink"
-        >
-          <ArrowLeft size={16} aria-hidden />
-          Library
-        </Link>
+        <Crumb />
         <div className="min-w-0 flex-1">
           <h1 className="text-base font-semibold tracking-tight text-ink">What changed between the versions</h1>
           <p className="truncate text-xs text-ink-subtle">

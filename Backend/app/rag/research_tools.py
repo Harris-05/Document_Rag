@@ -49,8 +49,8 @@ TOOL_SPECS: list[dict[str, Any]] = [
         "function": {
             "name": "search_document",
             "description": (
-                "Search the contract for passages about a topic. Use short queries in the wording a "
-                "contract would use (for example 'termination for convenience notice period'). Returns "
+                "Search the document for passages about a topic. Use short queries in the wording the "
+                "document would use (for example 'termination notice period' or 'phishing'). Returns "
                 "the best matching passages with their page and section heading."
             ),
             "parameters": {
@@ -68,7 +68,7 @@ TOOL_SPECS: list[dict[str, Any]] = [
         "function": {
             "name": "get_section",
             "description": (
-                "Read one numbered section or clause in full, including its sub-clauses. Pass the "
+                "Read one numbered section in full, including its sub-sections. Pass the "
                 "number as shown by list_clauses or in a search result, such as '12' or '12.3'. A "
                 "heading such as 'Termination' also works."
             ),
@@ -84,8 +84,8 @@ TOOL_SPECS: list[dict[str, Any]] = [
         "function": {
             "name": "list_clauses",
             "description": (
-                "List the numbered clauses and headings of the contract with their pages, as a table of "
-                "contents. Takes no arguments. Use it to see how the contract is organised."
+                "List the numbered sections and headings of the document with their pages, as a table of "
+                "contents. Takes no arguments. Use it to see how the document is organised."
             ),
             "parameters": {"type": "object", "properties": {}},
         },
@@ -290,7 +290,7 @@ class DocumentTools:
             hint = f" Numbered clauses: {', '.join(known)}." if known else " Use list_clauses or search_document instead."
             return ToolOutcome(
                 True,
-                f"There is no section {args.number!r} in this contract.{hint}",
+                f"There is no section {args.number!r} in this document.{hint}",
                 f"No section “{args.number}” exists; the model was shown what does",
             )
 
@@ -317,8 +317,8 @@ class DocumentTools:
         if not self._sections:
             return ToolOutcome(
                 True,
-                "This contract has no numbered clauses or headings that could be listed. Use search_document.",
-                "The contract has no numbered clauses to list",
+                "This document has no numbered sections or headings that could be listed. Use search_document.",
+                "The document has no numbered sections to list",
             )
         shown = self._sections[:MAX_LISTED_CLAUSES]
         lines = [f"{s.number + '. ' if s.number else ''}{s.title} (page {s.page})" for s in shown]
@@ -327,5 +327,5 @@ class DocumentTools:
         return ToolOutcome(
             True,
             "Clauses:\n" + "\n".join(lines) + more,
-            f"Listed {len(lines)} clause{'s' if len(lines) != 1 else ''}",
+            f"Listed {len(lines)} section{'s' if len(lines) != 1 else ''}",
         )

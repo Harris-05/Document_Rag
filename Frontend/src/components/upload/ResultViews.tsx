@@ -44,7 +44,7 @@ export function ErrorView({ file, error, onRetry }: ErrorViewProps) {
   return (
     <div
       role="alert"
-      className="flex min-h-[19rem] flex-col justify-between gap-8 rounded-card border border-danger/40 bg-danger-soft p-6 sm:p-8"
+      className="flex min-h-[14rem] flex-col justify-between gap-8 rounded-card border border-danger/40 bg-danger-soft p-6 sm:p-8"
     >
       <div className="flex flex-col gap-5">
         <div className="flex items-center gap-3">
@@ -83,7 +83,7 @@ export function SuccessView({ file, document, onReset }: SuccessViewProps) {
       : "Word document";
 
   return (
-    <div className="flex min-h-[19rem] flex-col justify-between gap-8 rounded-card border border-line bg-surface p-6 shadow-card sm:p-8">
+    <div className="flex min-h-[14rem] flex-col justify-between gap-8 rounded-card border border-line bg-surface p-6 shadow-card sm:p-8">
       <div className="flex flex-col gap-5">
         <div className="flex items-center gap-3">
           <span className="grid size-11 shrink-0 place-items-center rounded-ctl bg-success-soft text-success">

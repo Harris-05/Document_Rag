@@ -20,15 +20,17 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from app.config import Settings
 from app.rag import prompts
+from app.rag.answer_stream import StreamedAnswer, stream_answer
 from app.rag.index import Chunk, DocumentIndex, Hit, ensure_index, has_chunks
 from app.rag.llm import LLMClient, LLMError
+from app.rag.quote_repair import missing_numbers, repair_missing_quotes
 from app.rag.quotes import DocumentText
 
 Quality = Literal["sufficient", "partial", "insufficient", "not_applicable"]
 
 OFF_TOPIC_REPLY = (
-    "I can only answer questions about this document. Ask about a clause, a party, a date, an "
-    "obligation or a figure and I will search it."
+    "That doesn\u2019t look like a question about this document. Ask about something it covers, such as a "
+    "topic, a term, a section, a date or a figure, and I will search it."
 )
 _CITATION_MARKER = re.compile(r"\[(\d{1,2})\]")
 
@@ -78,6 +80,7 @@ class AgentInput:
     document_id: str
     llm: LLMClient
     settings: Settings
+    document_name: str = ""
 
 
 @dataclass
@@ -151,7 +154,7 @@ def not_found_message(coverage: dict[str, Any], queries: list[str]) -> str:
         f"{'page' if coverage['pages'] == 1 else 'pages'} for {shown}, over {coverage['rounds']} "
         f"{'round' if coverage['rounds'] == 1 else 'rounds'} of searching.",
         "That means no supporting text was found. It is not proof that the document says nothing on "
-        "the subject. Try naming the clause or the term it uses.",
+        "the subject. Try naming the section or the term it uses.",
     ]
     if coverage["unreadable_pages"]:
         lines.append(
@@ -192,7 +195,7 @@ async def _run(inp: AgentInput, document: DocumentText, warm: "asyncio.Task[None
     )
     try:
         yield _step("understand", "Working out what to search for")
-        plan = await _plan_queries(inp, state)
+        plan = await _plan_queries(inp, state, prompts.build_document_note(inp.document_name, inp.pages))
         build = await index_task
     finally:
         if not index_task.done():
@@ -326,32 +329,21 @@ async def _run(inp: AgentInput, document: DocumentText, warm: "asyncio.Task[None
         memory_chars=settings.chat_memory_chars,
     )
 
-    marker = prompts.QUOTES_MARKER
-    buffer = ""
-    emitted = 0
-    announced_quotes = False
-    async for delta in inp.llm.stream_completion(
-        prompts.ANSWER_SYSTEM, answer_prompt, temperature=settings.temperature_answer
-    ):
-        buffer += delta
-        cut = buffer.find(marker)
-        if cut != -1 and not announced_quotes:
-            # The answer text is complete; the model is now writing out its quotes. Say so, because
-            # nothing else visibly changes during this phase.
-            announced_quotes = True
-            if cut > emitted:
-                yield _event("token", {"text": buffer[emitted:cut]})
-                emitted = cut
-            yield _step("quotes", "Collecting the quotes that support the answer")
-        safe_end = cut if cut != -1 else max(emitted, len(buffer) - (len(marker) - 1))
-        if safe_end > emitted:
-            yield _event("token", {"text": buffer[emitted:safe_end]})
-            emitted = safe_end
-    marker_at = buffer.find(marker)
-    answer_text = buffer if marker_at == -1 else buffer[:marker_at]
-    if len(answer_text) > emitted:
-        yield _event("token", {"text": answer_text[emitted:]})
-    raw_quotes = "" if marker_at == -1 else buffer[marker_at + len(marker) :]
+    streamed = StreamedAnswer()
+    async for event in stream_answer(inp.llm, prompts.ANSWER_SYSTEM, answer_prompt, settings.temperature_answer, streamed):
+        yield event
+    answer_text, raw_quotes = streamed.text, streamed.raw_quotes
+
+    if missing_numbers(answer_text, raw_quotes):
+        yield _step("quotes", "Finding the quotes behind every citation")
+        raw_quotes = await repair_missing_quotes(
+            inp.llm,
+            settings,
+            answer_text,
+            raw_quotes,
+            [(label, f"page {p.chunk.page_number}", p.chunk.text) for label, p in labelled.items()],
+            streamed.label_of,
+        )
 
     yield _step("verify", "Checking every quote against the document text")
     await warm

@@ -147,7 +147,7 @@ class TestRejection:
 
 class TestNormalization:
     def test_normalize_collapses_whitespace_and_folds_case(self):
-        assert normalize_for_match("  Hello\n\n  “WORLD”  ") == 'hello "world"'
+        assert normalize_for_match("  Hello\n\n  “WORLD”  ") == "hello 'world'"
 
 
 class TestEveryOccurrence:

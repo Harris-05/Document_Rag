@@ -46,6 +46,7 @@ def _events(
                 document_id=only.id,
                 llm=llm,
                 settings=settings,
+                document_name=only.name,
             )
         )
     return run_multi_agent(

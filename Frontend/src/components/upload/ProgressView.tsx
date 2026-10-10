@@ -62,7 +62,7 @@ export function ProgressView({ state, onCancel }: ProgressViewProps) {
   const detail = describe(state);
 
   return (
-    <div className="flex min-h-[19rem] flex-col justify-between gap-8 rounded-card border border-line bg-surface p-6 shadow-card sm:p-8">
+    <div className="flex min-h-[14rem] flex-col justify-between gap-8 rounded-card border border-line bg-surface p-6 shadow-card sm:p-8">
       <div className="flex items-center gap-3">
         <FileBadge kind={kindFromName(state.file.name)} size={44} />
         <div className="min-w-0 flex-1">

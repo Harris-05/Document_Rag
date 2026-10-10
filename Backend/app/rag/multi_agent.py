@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 
 from app.config import Settings
 from app.rag import prompts, prompts_multi
+from app.rag.answer_stream import StreamedAnswer, stream_answer
 from app.rag.agent import (
     _CITATION_MARKER,
     OFF_TOPIC_REPLY,
@@ -39,6 +40,7 @@ from app.rag.agent import (
 )
 from app.rag.index import DocumentIndex, Hit, ensure_index, has_chunks
 from app.rag.llm import LLMClient, LLMError
+from app.rag.quote_repair import missing_numbers, repair_missing_quotes
 from app.rag.quotes import DocumentText
 
 Quality = str
@@ -137,7 +139,7 @@ def not_found_message(docs: list[_Doc], queries: list[str], rounds: int) -> str:
         f"I couldn't find a passage in any of these {len(docs)} documents that answers this question.",
         f"I searched {total} sections for {shown}, over {rounds} {'round' if rounds == 1 else 'rounds'} of searching.",
         "That means no supporting text was found. It is not proof that the documents say nothing on the "
-        "subject. Try naming the clause or the term it uses.",
+        "subject. Try naming the section or the term it uses.",
     ]
     unreadable = [d for d in docs if any(not text.strip() for _, text in d.source.pages)]
     for d in unreadable:
@@ -341,30 +343,28 @@ async def _run(inp: MultiInput, docs: list[_Doc], warm: "asyncio.Future[Any]") -
         memory_chars=settings.chat_memory_chars,
     )
 
-    marker = prompts.QUOTES_MARKER
-    buffer = ""
-    emitted = 0
-    announced = False
-    async for delta in inp.llm.stream_completion(
-        prompts_multi.ANSWER_MULTI_SYSTEM, answer_prompt, temperature=settings.temperature_answer
+    streamed = StreamedAnswer()
+    async for event in stream_answer(
+        inp.llm,
+        prompts_multi.ANSWER_MULTI_SYSTEM,
+        answer_prompt,
+        settings.temperature_answer,
+        streamed,
+        quotes_text="Collecting the quotes that support the comparison",
     ):
-        buffer += delta
-        cut = buffer.find(marker)
-        if cut != -1 and not announced:
-            announced = True
-            if cut > emitted:
-                yield _event("token", {"text": buffer[emitted:cut]})
-                emitted = cut
-            yield _step("quotes", "Collecting the quotes that support the comparison")
-        safe_end = cut if cut != -1 else max(emitted, len(buffer) - (len(marker) - 1))
-        if safe_end > emitted:
-            yield _event("token", {"text": buffer[emitted:safe_end]})
-            emitted = safe_end
-    marker_at = buffer.find(marker)
-    answer_text = buffer if marker_at == -1 else buffer[:marker_at]
-    if len(answer_text) > emitted:
-        yield _event("token", {"text": answer_text[emitted:]})
-    raw_quotes = "" if marker_at == -1 else buffer[marker_at + len(marker) :]
+        yield event
+    answer_text, raw_quotes = streamed.text, streamed.raw_quotes
+
+    if missing_numbers(answer_text, raw_quotes):
+        yield _step("quotes", "Finding the quotes behind every citation")
+        raw_quotes = await repair_missing_quotes(
+            inp.llm,
+            inp.settings,
+            answer_text,
+            raw_quotes,
+            [(label, f"{doc.name}, page {p.chunk.page_number}", p.chunk.text) for label, (doc, p) in labelled.items()],
+            streamed.label_of,
+        )
 
     yield _step("verify", "Checking every quote against the document it is credited to")
     await warm

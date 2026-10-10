@@ -16,7 +16,7 @@ import {
   WarningCircle,
   type Icon,
 } from "@phosphor-icons/react";
-import { useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { TraceStep } from "@/lib/types";
 
 const STEP_ICONS: Record<string, Icon> = {
@@ -69,11 +69,21 @@ interface AgentTraceProps {
   steps: TraceStep[];
   /** True while the agent is still working and no answer text has arrived yet. */
   working: boolean;
+  /** Shown at the right of the toggle row once the answer is finished (for example the export buttons). */
+  trailing?: ReactNode;
+  /** Extra detail shown inside the opened panel, after the steps. */
+  details?: ReactNode;
 }
 
-export function AgentTrace({ steps, working }: AgentTraceProps) {
+export function AgentTrace({ steps, working, trailing, details }: AgentTraceProps) {
   const [expanded, setExpanded] = useState(false);
-  if (steps.length === 0) return null;
+  const panel = useRef<HTMLDivElement>(null);
+
+  // Opening the steps below the fold would leave them hidden behind the question box, so bring them into view.
+  useEffect(() => {
+    if (expanded) panel.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [expanded]);
+  if (steps.length === 0) return trailing ? <div className="flex justify-end">{trailing}</div> : null;
 
   const open = working || expanded;
   const rounds = Math.max(0, ...steps.map((step) => step.round ?? 0));
@@ -83,26 +93,29 @@ export function AgentTrace({ steps, working }: AgentTraceProps) {
   const decidingNext = working && last.kind === "tool_result";
 
   return (
-    <div className="flex flex-col gap-2">
+    <div ref={panel} className="flex flex-col gap-2">
       {!working && (
-        <button
-          type="button"
-          onClick={() => setExpanded((value) => !value)}
-          aria-expanded={expanded}
-          className="flex min-h-9 w-fit cursor-pointer items-center gap-1.5 rounded-ctl text-[13px] text-ink-subtle transition-colors hover:text-ink"
-        >
-          <CaretDown
-            size={14}
-            className={`transition-transform duration-150 ${expanded ? "rotate-180" : ""}`}
-            aria-hidden
-          />
-          How this was answered
-          <span className="font-mono tabular-nums">
-            {toolCalls > 0
-              ? `${toolCalls} lookup${toolCalls === 1 ? "" : "s"}, ${rounds} round${rounds === 1 ? "" : "s"}`
-              : `${steps.length} steps${rounds > 1 ? `, ${rounds} search rounds` : ""}`}
-          </span>
-        </button>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            aria-expanded={expanded}
+            className="-ml-2 flex min-h-9 w-fit cursor-pointer items-center gap-1.5 rounded-full px-2 text-[12px] text-ink-subtle transition-colors hover:bg-surface-2 hover:text-ink"
+          >
+            <CaretDown
+              size={13}
+              className={`transition-transform duration-150 ${expanded ? "rotate-180" : ""}`}
+              aria-hidden
+            />
+            How this was answered
+            <span className="tabular-nums">
+              {toolCalls > 0
+                ? `${toolCalls} lookup${toolCalls === 1 ? "" : "s"}, ${rounds} round${rounds === 1 ? "" : "s"}`
+                : `${steps.length} steps${rounds > 1 ? `, ${rounds} search rounds` : ""}`}
+            </span>
+          </button>
+          {trailing}
+        </div>
       )}
 
       {open && (
@@ -111,10 +124,7 @@ export function AgentTrace({ steps, working }: AgentTraceProps) {
             const active = working && index === steps.length - 1 && step.kind !== "tool_result";
             const isResult = step.kind === "tool_result";
             return (
-              <li
-                key={index}
-                className={`flex items-start gap-2.5 text-[13px] leading-snug ${isResult ? "ml-6" : ""}`}
-              >
+              <li key={index} className={`flex items-start gap-2.5 text-[13px] leading-snug ${isResult ? "ml-6" : ""}`}>
                 <span className="mt-px shrink-0">
                   <StepIcon step={step} active={active} />
                 </span>
@@ -137,6 +147,7 @@ export function AgentTrace({ steps, working }: AgentTraceProps) {
           )}
         </ol>
       )}
+      {open && !working && details}
     </div>
   );
 }

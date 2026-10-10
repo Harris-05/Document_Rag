@@ -32,6 +32,7 @@ from app.rag.agent import (
 from app.rag.answer_stream import StreamedAnswer, stream_answer
 from app.rag.index import Chunk, DocumentIndex, ensure_index, has_chunks
 from app.rag.llm import LLMError, ToolCall
+from app.rag.quote_repair import missing_numbers, repair_missing_quotes
 from app.rag.quotes import DocumentText
 from app.rag.research_tools import TOOL_SPECS, DocumentTools, Evidence
 
@@ -54,7 +55,7 @@ def _announce(call: ToolCall) -> str:
     if call.name == "get_section" and args.get("number") not in (None, ""):
         return f"Reading section {str(args['number'])[:60]}"
     if call.name == "list_clauses":
-        return "Listing the clauses of the contract"
+        return "Listing the sections of the document"
     return f"Calling {call.name or 'an unnamed tool'}"
 
 
@@ -123,7 +124,12 @@ async def _run(inp: AgentInput, document: DocumentText, warm: "asyncio.Task[None
     units = await asyncio.to_thread(segment, inp.pages)
     tools = DocumentTools(index, units, inp.llm, settings)
     messages: list[dict[str, Any]] = [
-        {"role": "system", "content": prompts_research.RESEARCH_SYSTEM},
+        {
+            "role": "system",
+            "content": prompts_research.RESEARCH_SYSTEM
+            + "\n\n"
+            + prompts.build_document_note(inp.document_name, inp.pages),
+        },
         *_history_messages(inp.history, settings.chat_memory_chars),
         {"role": "user", "content": inp.question},
     ]
@@ -247,6 +253,17 @@ async def _run(inp: AgentInput, document: DocumentText, warm: "asyncio.Task[None
     streamed = StreamedAnswer()
     async for event in stream_answer(inp.llm, prompts.ANSWER_SYSTEM, prompt, settings.temperature_answer, streamed):
         yield event
+
+    if missing_numbers(streamed.text, streamed.raw_quotes):
+        yield _step("quotes", "Finding the quotes behind every citation")
+        streamed.raw_quotes = await repair_missing_quotes(
+            inp.llm,
+            settings,
+            streamed.text,
+            streamed.raw_quotes,
+            [(e.label, f"page {e.page}", e.text) for e in chosen],
+            streamed.label_of,
+        )
 
     yield _step("verify", "Checking every quote against the document text")
     await warm

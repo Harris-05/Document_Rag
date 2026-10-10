@@ -143,7 +143,7 @@ copy .env.example .env
 npm run dev
 ```
 
-Open http://localhost:3000. The API docs are at http://localhost:8000/docs.
+Open http://localhost:3000 for the landing page; the app itself is at http://localhost:3000/app. The API docs are at http://localhost:8000/docs.
 
 **Tests**
 
@@ -176,6 +176,37 @@ cd Backend
 | `CHAT_MEMORY_CHARS` | Earlier answers are shortened to this length before the model sees them | `800` |
 | `MAX_UPLOAD_MB` | Largest accepted upload | `25` |
 | `CORS_ORIGINS` | Allowed browser origins | `http://localhost:3000` |
+
+## Deploying
+
+The backend runs on **Render** and the frontend on **Vercel**. Deploy the backend first, because the
+frontend needs its address.
+
+**1. Backend on Render.** In Render choose *New > Blueprint*, pick this repository, and it reads
+[`render.yaml`](./render.yaml) (Python runtime, `Backend/` as the root, one instance, a 1 GB persistent
+disk, health check at `/api/health`). Then set two environment variables in the dashboard:
+
+| Variable | Value |
+| --- | --- |
+| `OPENAI_API_KEY` | your key (never committed) |
+| `CORS_ORIGINS` | your Vercel address, for example `https://marginalia.vercel.app` |
+
+Documents are stored in SQLite and files on disk, so it must stay a single instance with its disk. A
+persistent disk needs a paid Render instance. On the free plan the disk is wiped on every restart,
+deploy and idle spin-down, and uploaded documents would disappear. The OpenAI project behind the key
+must be allowed to use `text-embedding-3-small`, or search falls back to keyword only.
+
+**2. Frontend on Vercel.** Import the repository, set **Root Directory** to `Frontend`, and add
+`NEXT_PUBLIC_API_URL` set to the Render address without a trailing slash (for example
+`https://marginalia-api.onrender.com`). Deploy. This value is baked in at build time, so changing it
+needs a redeploy.
+
+**3. Connect them.** Put the final Vercel address into `CORS_ORIGINS` on Render and let it redeploy.
+Preview deployments have different addresses and are blocked unless added to that list.
+
+**Check it works:** `https://<your-render-address>/api/health` returns `{"status":"ok"}`; then upload a
+PDF on the Vercel site and ask a question. The PDF export uses a system font if the host has Arial, Liberation or DejaVu. If it has none,
+it falls back to a built-in font and characters outside Latin-1 (and Arabic) appear as `?` in the PDF.
 
 ## Project layout
 

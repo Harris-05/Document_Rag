@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { SIGNIFICANCE_LABEL } from "@/lib/changes";
 import { formatRelativeTime } from "@/lib/format";
 import type { ComparisonSummary } from "@/lib/types";
+import { EmptyState } from "./EmptyState";
 
 interface ComparisonListProps {
   comparisons: ComparisonSummary[];
@@ -100,17 +101,20 @@ function Row({ comparison, onDelete }: { comparison: ComparisonSummary; onDelete
 }
 
 export function ComparisonList({ comparisons, onDelete }: ComparisonListProps) {
-  if (comparisons.length === 0) return null;
+  if (comparisons.length === 0) {
+    return (
+      <EmptyState
+        icon={GitDiff}
+        title="No version comparisons yet"
+        body="Select two versions of a contract in Documents and choose “See what changed”."
+      />
+    );
+  }
   return (
-    <section aria-labelledby="version-comparisons-heading" className="flex flex-col gap-3">
-      <h2 id="version-comparisons-heading" className="text-lg font-semibold tracking-tight text-ink">
-        Version comparisons
-      </h2>
-      <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface shadow-card">
-        {comparisons.map((comparison) => (
-          <Row key={comparison.id} comparison={comparison} onDelete={onDelete} />
-        ))}
-      </ul>
-    </section>
+    <ul className="divide-y divide-line">
+      {comparisons.map((comparison) => (
+        <Row key={comparison.id} comparison={comparison} onDelete={onDelete} />
+      ))}
+    </ul>
   );
 }

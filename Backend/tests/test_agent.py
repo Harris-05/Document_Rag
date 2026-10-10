@@ -10,6 +10,7 @@ from app.rag import prompts
 from app.rag.agent import AgentInput, run_agent
 from app.rag.index import load_chunks
 from app.rag.llm import LLMError
+from app.rag.quote_repair import REPAIR_SYSTEM
 
 from .fakes import FakeLLM, ScriptedGrader
 
@@ -318,6 +319,96 @@ class TestQuoteVerificationInTheLoop:
             assert streamed.strip().endswith("[1].")
 
 
+class TestMissingQuotesAreRequested:
+    CITES_TWO = (
+        "Notice is 90 days [1] and the cap is AED 100,000 [2].\n"
+        + prompts.QUOTES_MARKER
+        + "\n"
+        + json.dumps([{"n": 1, "evidence": "E1", "quote": "ninety (90) days written notice"}])
+    )
+
+    def llm(self, **kwargs):
+        return ScriptedGrader(plans=[plan("notice")], grades=[grading_for_page(2)], answer=self.CITES_TWO, **kwargs)
+
+    def test_a_quote_the_model_forgot_is_asked_for_and_verified(self, db):
+        llm = self.llm(
+            repairs=[{"quotes": [{"n": 2, "evidence": "E1", "quote": "ninety (90) days written notice"}]}]
+        )
+        events = run(llm)
+
+        assert [(c["n"], c["verified"]) for c in citations_of(events)] == [(1, True), (2, True)]
+        assert any(s["kind"] == "quotes" and "behind every citation" in s["text"] for s in steps_of(events))
+
+    def test_only_the_missing_numbers_are_asked_for(self, db):
+        llm = self.llm()
+        run(llm)
+
+        asked = [u for s, u in llm.json_calls if s == REPAIR_SYSTEM]
+        assert len(asked) == 1
+        assert "Numbers that need a quote: [2]" in asked[0]
+
+    def test_an_invented_quote_is_still_reported_as_not_found(self, db):
+        llm = self.llm(repairs=[{"quotes": [{"n": 2, "evidence": "E1", "quote": "the Supplier pays all costs"}]}])
+        citations = citations_of(run(llm))
+
+        assert [(c["n"], c["verified"]) for c in citations] == [(1, True), (2, False)]
+        assert citations[1]["quote"] == "the Supplier pays all costs"
+
+    def test_a_failed_repair_never_breaks_the_answer(self, db):
+        llm = self.llm(repairs=[LLMError("provider down")])
+        events = run(llm)
+
+        assert [(c["n"], c["verified"]) for c in citations_of(events)] == [(1, True), (2, False)]
+        assert done_of(events)["quality"] == "sufficient"
+
+    def test_nothing_is_asked_when_every_citation_has_a_quote(self, db):
+        llm = ScriptedGrader(plans=[plan("terminate")], grades=[grading_for_page(2)], answer=good_answer())
+        run(llm)
+
+        assert llm.count(REPAIR_SYSTEM) == 0
+
+
+class TestAnswersCitedWithEvidenceLabels:
+    """gpt-style models often cite "[E1]" instead of "[1]" and may write no quote list at all."""
+
+    def test_labels_become_numbers_and_the_missing_quote_is_filled_in(self, db):
+        answer = "Either party can terminate on 90 days notice [E1]."
+        llm = ScriptedGrader(
+            plans=[plan("terminate")],
+            grades=[grading_for_page(2)],
+            answer=answer,
+            repairs=[{"quotes": [{"n": 1, "evidence": "E1", "quote": "ninety (90) days written notice"}]}],
+        )
+        events = run(llm)
+
+        assert "[E1]" not in text_of(events)
+        assert "notice [1]." in text_of(events)
+        assert [(c["n"], c["verified"]) for c in citations_of(events)] == [(1, True)]
+        # The repair prompt says which passage the number was written for.
+        assert "[1] was written for evidence E1" in llm.prompts_for(REPAIR_SYSTEM)[0]
+
+    def test_quotes_the_model_did_write_are_attached_to_the_renumbered_citation(self, db):
+        answer = (
+            "Ninety days [E1].\n"
+            + prompts.QUOTES_MARKER
+            + "\n"
+            + json.dumps([{"n": 7, "evidence": "E1", "quote": "ninety (90) days written notice"}])
+        )
+        llm = ScriptedGrader(plans=[plan("terminate")], grades=[grading_for_page(2)], answer=answer)
+        events = run(llm)
+
+        assert "Ninety days [1]." in text_of(events)
+        assert [(c["n"], c["verified"]) for c in citations_of(events)] == [(1, True)]
+        assert llm.count(REPAIR_SYSTEM) == 0
+
+    def test_the_numbered_text_is_what_gets_saved_not_the_labelled_text(self, db):
+        llm = ScriptedGrader(
+            plans=[plan("terminate")], grades=[grading_for_page(2)], answer="Yes [E1] and also [E1].", stream_size=2
+        )
+
+        assert text_of(run(llm)) == "Yes [1] and also [1]."
+
+
 class TestOtherBehaviour:
     def test_off_topic_messages_do_not_trigger_retrieval(self, db):
         llm = ScriptedGrader(plans=[plan(intent="off_topic")])
@@ -325,7 +416,7 @@ class TestOtherBehaviour:
 
         assert llm.count(prompts.GRADE_SYSTEM) == 0
         assert llm.stream_calls == []
-        assert "only answer questions about this document" in text_of(events)
+        assert "doesn\u2019t look like a question about this document" in text_of(events)
         assert done_of(events)["quality"] == "not_applicable"
 
     def test_search_falls_back_to_keywords_when_embeddings_fail(self, db):

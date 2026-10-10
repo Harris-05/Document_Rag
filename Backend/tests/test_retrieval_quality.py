@@ -168,7 +168,7 @@ class TestPrompts:
 
     def test_the_judge_is_fair_not_strict(self):
         assert "strict" not in prompts.GRADE_SYSTEM.lower()
-        assert "Short standard clauses" in prompts.GRADE_SYSTEM
+        assert "short standard clauses" in prompts.GRADE_SYSTEM.lower()
 
 
 def make_client(responses: list) -> tuple[OpenAIClient, list[dict]]:

@@ -71,12 +71,28 @@ def add_assistant_message(
 
 
 def recent_history(conversation_id: str, limit: int = 8) -> list[tuple[str, str]]:
-    """Completed turns only, oldest first, so an interrupted answer never poisons later context."""
+    """Completed turns only, oldest first, so an interrupted answer never poisons later context.
+
+    A refused turn ("I can only answer questions about this document...") is left out together with the
+    question that prompted it. It carries no information about the document, and shown to the model as
+    an earlier reply it makes the model refuse the next question too.
+    """
     with connect() as connection:
+        # Refusals and the questions that got them are excluded in the query, so they cannot use up
+        # the window however many there are.
         rows = connection.execute(
             """
-            SELECT role, content FROM messages
-            WHERE conversation_id = ? AND (role = 'user' OR status = 'complete')
+            SELECT role, content FROM messages AS m
+            WHERE conversation_id = ?
+              AND (role = 'user' OR status = 'complete')
+              AND NOT (role = 'assistant' AND quality = 'not_applicable')
+              AND NOT (
+                role = 'user' AND 'not_applicable' = COALESCE((
+                  SELECT a.quality FROM messages AS a
+                  WHERE a.conversation_id = m.conversation_id AND a.role = 'assistant' AND a.id > m.id
+                  ORDER BY a.id LIMIT 1
+                ), '')
+              )
             ORDER BY id DESC LIMIT ?
             """,
             (conversation_id, limit),

@@ -18,6 +18,7 @@ MIN_QUOTE_CHARS = 8
 MIN_SEGMENT_CHARS = 6
 
 _ELLIPSIS = re.compile(r"\.{3,}|…")
+_EDGE_PUNCTUATION = " .,;:!?"
 _RUN = re.compile(r"\S+")
 
 _CHAR_FOLDS = {
@@ -25,11 +26,15 @@ _CHAR_FOLDS = {
     "’": "'",
     "‚": "'",
     "‛": "'",
-    "“": '"',
-    "”": '"',
-    "„": '"',
-    "«": '"',
-    "»": '"',
+    # Every quotation mark is the same character. A model that copies a phrase which sits in double
+    # quotes inside a sentence often writes it back in single quotes (or the other way round), and the
+    # words are what matter, not the style of mark.
+    "“": "'",
+    "”": "'",
+    "„": "'",
+    "«": "'",
+    "»": "'",
+    '"': "'",
     "‐": "-",
     "‑": "-",
     "‒": "-",
@@ -88,7 +93,9 @@ class _Normalized:
 def _fold_run(run: str, base: int, keep_soft_hyphen: bool) -> tuple[str, list[int]]:
     """Fold one whitespace-free run. Plain ASCII, which is almost all contract text, takes a fast path."""
     if run.isascii():
-        return run.lower(), list(range(base, base + len(run)))
+        # Straight double quotes are folded here too, to match the fold table below (same length, so
+        # character positions are unchanged).
+        return run.replace('"', "'").lower(), list(range(base, base + len(run)))
 
     chars: list[str] = []
     origins: list[int] = []
@@ -198,15 +205,27 @@ class DocumentText:
         quote verified.
         """
         segments = [s for s in (normalize_for_match(part) for part in _ELLIPSIS.split(quote)) if s]
-        if not segments or sum(len(s) for s in segments) < MIN_QUOTE_CHARS:
-            return None
-        if len(segments) > 1 and any(len(s) < MIN_SEGMENT_CHARS for s in segments):
-            return None
+        # The quote as written is tried first. Only if that fails is it tried again without sentence
+        # punctuation at its two ends: a model often closes a quoted phrase with a full stop that the
+        # slide or sentence never had. Nothing inside the quote is loosened.
+        attempts = [segments]
+        if segments:
+            trimmed = [*segments]
+            trimmed[0] = trimmed[0].lstrip(_EDGE_PUNCTUATION)
+            trimmed[-1] = trimmed[-1].rstrip(_EDGE_PUNCTUATION)
+            trimmed = [s for s in trimmed if s]
+            if trimmed != segments:
+                attempts.append(trimmed)
 
-        for method in ("exact", "dehyphenated"):
-            match = self._match_segments(segments, method, hint_pages)
-            if match:
-                return match
+        for candidate in attempts:
+            if not candidate or sum(len(s) for s in candidate) < MIN_QUOTE_CHARS:
+                continue
+            if len(candidate) > 1 and any(len(s) < MIN_SEGMENT_CHARS for s in candidate):
+                continue
+            for method in ("exact", "dehyphenated"):
+                match = self._match_segments(candidate, method, hint_pages)
+                if match:
+                    return match
         return None
 
     def _match_segments(

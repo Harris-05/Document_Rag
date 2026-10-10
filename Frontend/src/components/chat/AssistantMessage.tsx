@@ -13,12 +13,13 @@ import { DocumentEvidence } from "./DocumentEvidence";
 import { ExportAnswer } from "./ExportAnswer";
 
 const QUALITY_BADGE: Partial<Record<AnswerQuality, { label: string; className: string }>> = {
-  sufficient: { label: "Strong evidence", className: "bg-success-soft text-success" },
-  partial: { label: "Partial evidence", className: "bg-warn-soft text-warn" },
+  sufficient: { label: "Strong evidence", className: "bg-surface-2 text-ink" },
+  partial: { label: "Partial evidence", className: "border border-line-strong bg-surface text-ink" },
   insufficient: { label: "Nothing found", className: "bg-surface-2 text-ink-muted" },
 };
 
-function CoverageLine({ coverage }: { coverage: Coverage }) {
+/** What was searched, in numbers. It lives inside "How this was answered" so it is there for those who want it. */
+function SearchSummary({ coverage }: { coverage: Coverage }) {
   const pages = `${formatCount(coverage.pages)} ${coverage.pages === 1 ? "page" : "pages"}`;
   const sections = `${formatCount(coverage.sections)} sections`;
   const research = coverage.tool_calls !== undefined;
@@ -26,15 +27,22 @@ function CoverageLine({ coverage }: { coverage: Coverage }) {
     ? `${coverage.tool_calls} ${coverage.tool_calls === 1 ? "lookup" : "lookups"} in ${coverage.rounds} ${coverage.rounds === 1 ? "round" : "rounds"}`
     : `${coverage.rounds} ${coverage.rounds === 1 ? "search round" : "search rounds"}`;
   return (
+    <p className="text-xs tabular-nums text-ink-subtle">
+      {research ? `${sections} across ${pages}, ${effort}` : `Searched ${sections} across ${pages}, ${effort}`}
+    </p>
+  );
+}
+
+/** Limits on the search that the reader should know about, shown with the answer rather than tucked away. */
+function SearchLimits({ coverage }: { coverage: Coverage }) {
+  if (!coverage.keyword_only && coverage.unreadable_pages === 0) return null;
+  return (
     <div className="flex flex-col gap-1 text-xs text-ink-subtle">
-      <p className="font-mono tabular-nums">
-        {research ? `${sections} across ${pages}, ${effort}` : `Searched ${sections} across ${pages}, ${effort}`}
-      </p>
       {coverage.keyword_only && <p>Semantic search was unavailable, so keyword search was used.</p>}
       {coverage.unreadable_pages > 0 && (
         <p>
-          {formatCount(coverage.unreadable_pages)} {coverage.unreadable_pages === 1 ? "page" : "pages"} had no
-          readable text and could not be searched.
+          {formatCount(coverage.unreadable_pages)} {coverage.unreadable_pages === 1 ? "page" : "pages"} had no readable
+          text and could not be searched.
         </p>
       )}
     </div>
@@ -64,6 +72,10 @@ export function AssistantMessage({
   const latestStep = message.trace[message.trace.length - 1];
   const badge = message.quality ? QUALITY_BADGE[message.quality] : undefined;
   const unverified = message.citations.filter((citation) => !citation.verified).length;
+  const complete = message.status === "complete";
+  const showCoverage = complete && message.coverage && message.quality !== "not_applicable";
+  const exportable =
+    complete && message.serverId !== null && (message.quality === "sufficient" || message.quality === "partial");
   const citationId = (n: number) => `cite-${message.key}-${n}`;
 
   const handleSelectMarker = (n: number) => {
@@ -73,8 +85,9 @@ export function AssistantMessage({
   };
 
   return (
-    <article className="flex flex-col gap-4" aria-label="Answer" aria-busy={streaming}>
-      <AgentTrace steps={message.trace} working={streaming && !hasText} />
+    <article className="flex flex-col gap-5" aria-label="Answer" aria-busy={streaming}>
+      {/* While the answer is being worked out the steps are shown live, above it. */}
+      {streaming && <AgentTrace steps={message.trace} working={!hasText} />}
 
       {streaming && !hasText && message.trace.length === 0 && (
         <p className="text-[13px] text-ink-subtle" role="status">
@@ -99,9 +112,11 @@ export function AssistantMessage({
       )}
 
       {message.status === "stopped" && (
-        <p className="flex w-fit items-center gap-2 rounded-ctl bg-surface-2 px-3 py-2 text-[13px] text-ink-muted">
+        <p className="flex w-fit items-center gap-2 rounded-full bg-surface-2 px-3.5 py-2 text-[13px] text-ink-muted">
           <Stop size={14} weight="fill" aria-hidden />
-          {hasText ? "Stopped. The partial answer above is kept, and its quotes were not checked." : "Stopped before an answer was written."}
+          {hasText
+            ? "Stopped. The partial answer above is kept, and its quotes were not checked."
+            : "Stopped before an answer was written."}
         </p>
       )}
 
@@ -120,7 +135,7 @@ export function AssistantMessage({
                 variant="secondary"
                 onClick={() => onRetry(message.question as string)}
                 disabled={retryDisabled}
-                className="min-h-10 px-3 text-[13px]"
+                className="min-h-10 px-4 text-[13px]"
               >
                 <ArrowClockwise size={16} aria-hidden />
                 Try again
@@ -130,28 +145,26 @@ export function AssistantMessage({
         </div>
       )}
 
-      {badge && message.status === "complete" && (
-        <div className="flex flex-wrap items-center gap-3">
-          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${badge.className}`}>{badge.label}</span>
+      {complete && (badge || unverified > 0) && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          {badge && (
+            <span className={`rounded-full px-3 py-1 text-xs font-medium ${badge.className}`}>{badge.label}</span>
+          )}
+          {unverified > 0 && (
+            <p role="note" className="flex items-center gap-1.5 text-[12px] leading-snug text-danger">
+              <Info size={14} weight="fill" className="shrink-0" aria-hidden />
+              {unverified === 1
+                ? "1 quote could not be found in the document. Treat the claim that cites it with caution."
+                : `${unverified} quotes could not be found in the document. Treat the claims that cite them with caution.`}
+            </p>
+          )}
         </div>
       )}
 
-      {unverified > 0 && message.status === "complete" && (
-        <p
-          role="note"
-          className="flex items-start gap-2 rounded-ctl bg-warn-soft px-3 py-2.5 text-[13px] leading-relaxed text-warn"
-        >
-          <Info size={16} weight="fill" className="mt-0.5 shrink-0" aria-hidden />
-          {unverified === 1
-            ? "1 quote could not be found in the document. Treat the claim that cites it with caution."
-            : `${unverified} quotes could not be found in the document. Treat the claims that cite them with caution.`}
-        </p>
-      )}
-
       {message.citations.length > 0 && (
-        <section aria-label="Quotes from the document" className="flex flex-col gap-3">
-          <h3 className="text-[13px] font-medium text-ink-muted">Quotes</h3>
-          <ul className="flex flex-col gap-3">
+        <section aria-label="Quotes from the document" className="flex flex-col gap-2.5">
+          <h3 className="text-[11px] uppercase tracking-[0.18em] text-ink-subtle">Quotes</h3>
+          <ul className="divide-y divide-line overflow-hidden rounded-card border border-line">
             {message.citations.map((citation) => (
               <CitationCard
                 key={citation.n}
@@ -166,18 +179,24 @@ export function AssistantMessage({
         </section>
       )}
 
-      {message.status === "complete" &&
-        message.serverId !== null &&
-        (message.quality === "sufficient" || message.quality === "partial") && (
-          <ExportAnswer messageId={message.serverId} />
-        )}
-
-      {multi && message.coverage?.documents && message.status === "complete" && message.quality !== "not_applicable" && (
+      {multi && message.coverage?.documents && showCoverage && (
         <DocumentEvidence documents={message.coverage.documents} />
       )}
 
-      {message.coverage && message.status === "complete" && message.quality !== "not_applicable" && (
-        <CoverageLine coverage={message.coverage} />
+      {showCoverage && message.coverage && <SearchLimits coverage={message.coverage} />}
+
+      {/* One quiet footer: how it was answered on the left, export on the right. */}
+      {!streaming && (message.trace.length > 0 || exportable) && (
+        <div className="border-t border-line pt-1">
+          <AgentTrace
+            steps={message.trace}
+            working={false}
+            trailing={
+              exportable && message.serverId !== null ? <ExportAnswer messageId={message.serverId} /> : undefined
+            }
+            details={showCoverage && message.coverage ? <SearchSummary coverage={message.coverage} /> : undefined}
+          />
+        </div>
       )}
     </article>
   );

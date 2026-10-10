@@ -57,17 +57,15 @@ function Paragraphs({ text, byNumber, caret, onSelectCitation, markers }: Paragr
     <>
       {paragraphs.map((paragraph, paragraphIndex) => (
         <p key={paragraphIndex} className="max-w-[68ch] whitespace-pre-wrap">
-          {markers ? (
-            splitCitations(paragraph).map((part, partIndex) =>
-              part.type === "text" ? (
-                <span key={partIndex}>{part.value}</span>
-              ) : (
-                <Marker key={partIndex} n={part.n} citation={byNumber.get(part.n)} onSelect={onSelectCitation} />
-              ),
-            )
-          ) : (
-            paragraph
-          )}
+          {markers
+            ? splitCitations(paragraph).map((part, partIndex) =>
+                part.type === "text" ? (
+                  <span key={partIndex}>{part.value}</span>
+                ) : (
+                  <Marker key={partIndex} n={part.n} citation={byNumber.get(part.n)} onSelect={onSelectCitation} />
+                ),
+              )
+            : paragraph}
           {caret && paragraphIndex === paragraphs.length - 1 && <Caret />}
         </p>
       ))}

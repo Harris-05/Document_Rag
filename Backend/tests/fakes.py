@@ -7,6 +7,7 @@ from typing import Any
 
 from app.rag import prompts, prompts_multi
 from app.rag.llm import LLMError
+from app.rag.quote_repair import REPAIR_SYSTEM
 
 
 class FakeLLM:
@@ -21,12 +22,14 @@ class FakeLLM:
         fail_stream_after: int | None = None,
         answer_for: Callable[[str], str] | None = None,
         json_handler: Callable[[str, str], dict[str, Any]] | None = None,
+        repairs: list[dict[str, Any] | Exception] | None = None,
     ) -> None:
         self.plans = list(plans or [])
         self.grades = list(grades or [])
         self.answer = answer
         self.answer_for = answer_for
         self.json_handler = json_handler
+        self.repairs = list(repairs or [])
         self.embeddings_fail = embeddings_fail
         self.stream_size = stream_size
         self.fail_stream_after = fail_stream_after
@@ -39,6 +42,12 @@ class FakeLLM:
     async def json_completion(self, system: str, user: str, *, temperature: float | None = None) -> dict[str, Any]:
         self.json_calls.append((system, user))
         self.temperatures.append((system, temperature))
+        if system == REPAIR_SYSTEM:
+            # By default the model finds nothing to add, so a missing quote stays missing.
+            scripted = self.repairs.pop(0) if self.repairs else {"quotes": []}
+            if isinstance(scripted, Exception):
+                raise scripted
+            return scripted
         if self.json_handler is not None:
             return self.json_handler(system, user)
         queue = self.plans if system == prompts.QUERY_SYSTEM else self.grades
@@ -121,6 +130,6 @@ class ScriptedMultiGrader(FakeLLM):
 def evidence_label(prompt: str, document: str, page: int | None = None) -> str:
     """The E-number the prompt gave to the first passage from `document` (on `page`, if given)."""
     where = r"[^\n]*" if page is None else rf", page {page}\b"
-    match = re.search(rf'\[(E\d+)\] Document {document} "[^"]*"{where}', prompt)
+    match = re.search(rf'Evidence (E\d+): Document {document} "[^"]*"{where}', prompt)
     assert match, f"no evidence for {document} page {page} in the prompt"
     return match.group(1)

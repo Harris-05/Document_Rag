@@ -7,7 +7,7 @@ must name the document it came from so it can be checked against that document a
 
 from app.rag.prompts import EXPLANATION_LABEL, QUOTES_MARKER, _section_line, format_history
 
-GRADE_MULTI_SYSTEM = """You are a fair relevance judge for a legal assistant that compares several contracts.
+GRADE_MULTI_SYSTEM = """You are a fair relevance judge for an assistant that compares several documents.
 Retrieved passages are grouped under the document they came from, labelled D1, D2 and so on. You
 decide, FOR EACH DOCUMENT SEPARATELY, whether its passages contain what is needed to answer the
 question. Documents differ: one may fully cover the topic while another barely mentions it.
@@ -34,7 +34,7 @@ is missing).
 Reply with a JSON object only:
 {"grades": [{"id": <passage id>, "score": 1 | 2}], "sufficient": {"D1": true, "D2": false}, "missing": {"D1": "", "D2": "..."}}"""
 
-ANSWER_MULTI_SYSTEM = f"""You help someone compare legal contracts. You are accurate, clear and genuinely helpful.
+ANSWER_MULTI_SYSTEM = f"""You help someone compare documents (contracts, reports, lecture slides, anything). You are accurate, clear and genuinely helpful.
 Several documents are provided as numbered evidence passages, each labelled with its document
 (D1, D2, ...). Your answer has two kinds of statement, and you keep them apart.
 
@@ -45,7 +45,7 @@ Several documents are provided as numbered evidence passages, each labelled with
    not address it. Do not infer it from the other documents. If passages contradict each other, say so.
 
 2. GENERAL EXPLANATION. After the comparison you may add a short plain-language explanation of what the
-   terms mean and why the differences matter, using general legal knowledge. Put it after a line that
+   terms mean and why the differences matter, using general knowledge. Put it after a line that
    reads exactly:
    {EXPLANATION_LABEL}
    Rules for that section: no citations; never state or imply that a document says something the
@@ -80,7 +80,10 @@ Output format, exactly:
 [{{"n": 1, "document": "D1", "evidence": "E2", "quote": "exact text copied from passage E2"}}]
 
 The JSON array after {QUOTES_MARKER} must be valid JSON and must contain one entry for each citation
-number used in the answer. Each entry's "document" must be the document that passage came from."""
+number used in the answer. Each entry's "document" must be the document that passage came from.
+In the answer text cite ONLY with plain numbers in square brackets, such as [1] or [2]. Never write an
+evidence label such as E2 or [E2] in the answer text: labels belong only in the "evidence" field of
+the quotes list."""
 
 
 def build_documents_note(documents: list[tuple[str, str]]) -> str:
@@ -119,7 +122,7 @@ def build_answer_multi_prompt(
     """evidence: (label 'E1', document label, document name, page, text, section heading, is_context)
     unanswered: (document label, name) of documents where nothing relevant was found."""
     rendered = "\n\n".join(
-        f'[{label}] Document {doc_label} "{doc_name}", page {page}{" (context)" if neighbour else ""}\n'
+        f'Evidence {label}: Document {doc_label} "{doc_name}", page {page}{" (context)" if neighbour else ""}\n'
         f"{_section_line(context)}{text}"
         for label, doc_label, doc_name, page, text, context, neighbour in evidence
     )

@@ -43,19 +43,29 @@ export function Dropzone({ onFiles }: DropzoneProps) {
       onDragOver={(event) => hasFiles(event) && event.preventDefault()}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`flex min-h-[19rem] flex-col items-center justify-center gap-6 rounded-card border border-dashed px-6 py-10 text-center transition-colors duration-200 ${
-        dragging ? "border-accent bg-accent-soft" : "border-line-strong bg-surface"
+      className={`flex min-h-[14rem] flex-col items-center justify-center gap-5 rounded-card border border-dashed px-6 py-10 text-center transition-[background-color,border-color] duration-200 md:flex-row md:justify-between md:gap-8 md:px-10 md:text-left ${
+        dragging ? "border-ink bg-surface-2" : "border-line-strong bg-surface hover:border-ink-subtle"
       }`}
     >
-      <span
-        className={`grid size-14 place-items-center rounded-card transition-colors duration-200 ${
-          dragging ? "bg-accent text-accent-ink" : "bg-accent-soft text-accent"
-        }`}
-      >
-        <UploadSimple size={26} weight="bold" aria-hidden />
-      </span>
+      <div className="flex flex-col items-center gap-4 md:flex-row md:gap-6">
+        <span
+          className={`grid size-14 shrink-0 place-items-center rounded-full transition-colors duration-200 ${
+            dragging ? "bg-accent text-accent-ink" : "bg-surface-2 text-ink"
+          }`}
+        >
+          <UploadSimple size={24} weight="bold" aria-hidden />
+        </span>
+        <div className="flex flex-col gap-1.5">
+          <h2 className="text-lg font-medium tracking-tight text-ink" aria-live="polite">
+            {dragging ? "Release to upload" : "Drop a contract here"}
+          </h2>
+          <p className="text-sm text-ink-muted">
+            PDF or Word (DOCX), up to {MAX_UPLOAD_MB} MB. Scanned pages without text can&apos;t be read.
+          </p>
+        </div>
+      </div>
 
-      <div className="flex flex-col items-center gap-2">
+      <div className="flex shrink-0 flex-col items-center gap-2">
         <input
           ref={inputRef}
           type="file"
@@ -68,15 +78,11 @@ export function Dropzone({ onFiles }: DropzoneProps) {
             event.target.value = "";
           }}
         />
-        <Button onClick={() => inputRef.current?.click()} className="px-6">
+        <Button onClick={() => inputRef.current?.click()} className="rounded-full px-7">
           Upload PDF or DOCX
         </Button>
-        <p className="text-sm text-ink-muted" aria-live="polite">
-          {dragging ? "Release to upload" : "or drop a file here"}
-        </p>
+        <p className="text-xs text-ink-subtle">or drag and drop</p>
       </div>
-
-      <p className="text-[13px] text-ink-subtle">PDF or DOCX, up to {MAX_UPLOAD_MB} MB</p>
     </div>
   );
 }

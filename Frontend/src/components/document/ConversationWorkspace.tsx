@@ -1,9 +1,9 @@
 "use client";
 
-import { ArrowLeft, ChatsCircle, FileText, Info } from "@phosphor-icons/react";
-import Link from "next/link";
+import { ChatsCircle, FileText, Info } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChatPane } from "@/components/chat/ChatPane";
+import { Crumb } from "@/components/layout/Crumb";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { useDocumentTexts } from "@/hooks/useDocumentTexts";
 import { ApiError, getConversation } from "@/lib/api";
@@ -50,7 +50,7 @@ export function ConversationWorkspace({ id }: { id: string }) {
       <Notice
         title="Comparison not found"
         message="It may have been deleted, or all of its documents may have been removed."
-        action={<LinkButton href="/">Back to library</LinkButton>}
+        action={<LinkButton href="/app">Back to library</LinkButton>}
       />
     );
   }
@@ -117,13 +117,7 @@ function Comparison({ conversation }: { conversation: Conversation }) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <Link
-          href="/"
-          className="-ml-2 flex min-h-11 items-center gap-2 rounded-ctl px-2 text-sm text-ink-muted transition-colors hover:text-ink"
-        >
-          <ArrowLeft size={16} aria-hidden />
-          Library
-        </Link>
+        <Crumb />
         <div className="min-w-0 flex-1">
           <h1 className="text-base font-semibold tracking-tight text-ink">
             Comparing {conversation.documents.length} {conversation.documents.length === 1 ? "document" : "documents"}

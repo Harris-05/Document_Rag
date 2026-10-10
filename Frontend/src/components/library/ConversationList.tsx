@@ -1,18 +1,25 @@
 "use client";
 
-import { Scales, Trash } from "@phosphor-icons/react";
+import { ChatsCircle, Scales, Trash } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { formatRelativeTime } from "@/lib/format";
 import type { Conversation } from "@/lib/types";
+import { EmptyState } from "./EmptyState";
 
 interface ConversationListProps {
   conversations: Conversation[];
   onDelete: (id: string) => Promise<string | null>;
 }
 
-function ConversationRow({ conversation, onDelete }: { conversation: Conversation; onDelete: ConversationListProps["onDelete"] }) {
+function ConversationRow({
+  conversation,
+  onDelete,
+}: {
+  conversation: Conversation;
+  onDelete: ConversationListProps["onDelete"];
+}) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,17 +97,20 @@ function ConversationRow({ conversation, onDelete }: { conversation: Conversatio
 }
 
 export function ConversationList({ conversations, onDelete }: ConversationListProps) {
-  if (conversations.length === 0) return null;
+  if (conversations.length === 0) {
+    return (
+      <EmptyState
+        icon={ChatsCircle}
+        title="No questions across documents yet"
+        body="Select two or more documents in Documents and choose “Ask across documents”."
+      />
+    );
+  }
   return (
-    <section aria-labelledby="comparisons-heading" className="flex flex-col gap-3">
-      <h2 id="comparisons-heading" className="text-lg font-semibold tracking-tight text-ink">
-        Questions across documents
-      </h2>
-      <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface shadow-card">
-        {conversations.map((conversation) => (
-          <ConversationRow key={conversation.id} conversation={conversation} onDelete={onDelete} />
-        ))}
-      </ul>
-    </section>
+    <ul className="divide-y divide-line">
+      {conversations.map((conversation) => (
+        <ConversationRow key={conversation.id} conversation={conversation} onDelete={onDelete} />
+      ))}
+    </ul>
   );
 }

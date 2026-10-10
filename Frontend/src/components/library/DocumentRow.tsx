@@ -49,13 +49,15 @@ export function DocumentRow({ document, onDelete, selectedAs, selectionFull, onT
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.98 }}
       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-      className="flex flex-col gap-3 px-4 py-4 sm:px-5"
+      className="flex flex-col gap-3 px-4 py-4 transition-colors hover:bg-surface-2/40 sm:px-5"
     >
       <div className="flex items-center gap-3">
         {!processing && (
           <label
             className={`-ml-2 grid size-11 shrink-0 place-items-center rounded-ctl ${
-              selectedAs === null && selectionFull ? "cursor-not-allowed opacity-40" : "cursor-pointer hover:bg-surface-2"
+              selectedAs === null && selectionFull
+                ? "cursor-not-allowed opacity-40"
+                : "cursor-pointer hover:bg-surface-2"
             }`}
             title={selectedAs === null && selectionFull ? "The comparison limit has been reached" : "Select to compare"}
           >
@@ -121,9 +123,7 @@ export function DocumentRow({ document, onDelete, selectedAs, selectionFull, onT
         <div className="flex flex-col gap-2">
           <ProgressBar
             label={`Processing ${document.filename}`}
-            value={
-              document.progress_total ? document.progress_done / document.progress_total : 0.4
-            }
+            value={document.progress_total ? document.progress_done / document.progress_total : 0.4}
           />
           <p className="text-[13px] text-ink-subtle" role="status">
             {document.progress_total && document.progress_done > 0

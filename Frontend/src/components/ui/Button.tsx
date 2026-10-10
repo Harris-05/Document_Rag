@@ -4,7 +4,7 @@ import type { ButtonHTMLAttributes, ComponentProps } from "react";
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
 const BASE =
-  "inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-ctl px-4 text-sm font-medium " +
+  "inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full px-5 text-sm font-medium " +
   "transition-[background-color,border-color,transform] duration-150 active:scale-[0.98] " +
   "disabled:pointer-events-none disabled:opacity-50";
 

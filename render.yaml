@@ -1,0 +1,33 @@
+# Render Blueprint for the backend (the frontend is deployed on Vercel, see the README).
+#
+# Documents live in SQLite plus uploaded files on disk, so this must run as ONE instance with a
+# persistent disk. Render disks need a paid instance type, hence `starter` below. On the free plan the
+# disk is wiped on every restart, deploy and idle spin-down, so uploaded documents would disappear:
+# remove the `disk` block and set plan to `free` only if you accept that.
+services:
+  - type: web
+    name: marginalia-api
+    runtime: python
+    rootDir: Backend
+    plan: starter
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1 --proxy-headers --forwarded-allow-ips "*"
+    healthCheckPath: /api/health
+    disk:
+      name: marginalia-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      - key: DATA_DIR
+        value: /var/data
+      - key: MAX_UPLOAD_MB
+        value: "25"
+      # Set these two in the Render dashboard; they are not stored in the repository.
+      - key: OPENAI_API_KEY
+        sync: false
+      # Your Vercel address, e.g. https://marginalia.vercel.app (comma-separate several).
+      - key: CORS_ORIGINS
+        sync: false
