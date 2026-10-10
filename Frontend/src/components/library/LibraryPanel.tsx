@@ -17,8 +17,12 @@ interface LibraryPanelProps {
   selected: string[];
   onToggleSelected: (id: string) => void;
   onClearSelection: () => void;
+  /** Start a question across the selected documents. */
   onCompare: () => void;
   comparing: boolean;
+  /** Show what changed between two versions (exactly two selected). */
+  onShowChanges: () => void;
+  showingChanges: boolean;
   compareError: string | null;
 }
 
@@ -78,8 +82,11 @@ export function LibraryPanel({
   onClearSelection,
   onCompare,
   comparing,
+  onShowChanges,
+  showingChanges,
   compareError,
 }: LibraryPanelProps) {
+  const busy = comparing || showingChanges;
   return (
     <section aria-labelledby="library-heading" className="flex flex-col gap-4">
       <div className="flex items-baseline justify-between">
@@ -122,15 +129,25 @@ export function LibraryPanel({
                 <span className="font-mono tabular-nums text-ink">{selected.length}</span> of {MAX_COMPARE} selected
                 {selected.length < MIN_COMPARE && ", choose at least 2 to compare"}
               </p>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" onClick={onClearSelection} disabled={comparing} className="min-h-10 px-3 text-[13px]">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="ghost" onClick={onClearSelection} disabled={busy} className="min-h-10 px-3 text-[13px]">
                   Clear
                 </Button>
-                <Button onClick={onCompare} disabled={selected.length < MIN_COMPARE || comparing} className="min-h-10 px-4 text-[13px]">
-                  {comparing ? "Opening" : selected.length >= MIN_COMPARE ? `Compare ${selected.length} documents` : "Compare"}
+                {selected.length === MIN_COMPARE && (
+                  <Button variant="secondary" onClick={onShowChanges} disabled={busy} className="min-h-10 px-3 text-[13px]">
+                    {showingChanges ? "Comparing" : "See what changed"}
+                  </Button>
+                )}
+                <Button onClick={onCompare} disabled={selected.length < MIN_COMPARE || busy} className="min-h-10 px-4 text-[13px]">
+                  {comparing ? "Opening" : selected.length >= MIN_COMPARE ? `Ask across ${selected.length} documents` : "Ask across documents"}
                 </Button>
               </div>
             </div>
+            {selected.length === MIN_COMPARE && (
+              <p className="text-xs leading-relaxed text-ink-subtle">
+                To see what changed, the first document you selected is treated as the older version.
+              </p>
+            )}
             {compareError && (
               <p role="alert" className="text-[13px] text-danger">
                 {compareError}

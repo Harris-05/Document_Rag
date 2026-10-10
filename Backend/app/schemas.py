@@ -104,6 +104,8 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
+    # "standard" is the graded-retrieval loop; "research" lets the model call tools to look things up.
+    mode: Literal["standard", "research"] = "standard"
 
     @field_validator("question")
     @classmethod
@@ -133,3 +135,99 @@ class CreateConversationRequest(BaseModel):
         if len(set(value)) != len(value):
             raise ValueError("Each document can only be selected once.")
         return value
+
+
+# Comparing two versions of a contract.
+
+
+class DocumentBrief(BaseModel):
+    id: str
+    filename: str
+    file_kind: FileKind
+    page_count: int | None
+
+
+class FigureOut(BaseModel):
+    kind: str
+    old: str | None
+    new: str | None
+
+
+class ObligationOut(BaseModel):
+    word: str
+    old: int
+    new: int
+
+
+class SideOut(BaseModel):
+    text: str
+    heading: str
+    page: int
+    ranges: list[CitationRange]
+
+
+class DiffSegmentOut(BaseModel):
+    op: Literal["equal", "delete", "insert"]
+    text: str
+
+
+class ChangeOut(BaseModel):
+    id: int
+    type: Literal["modified", "added", "removed", "moved"]
+    moved: bool
+    significance: Literal["critical", "major", "minor", "cosmetic", "unrated"]
+    ai_rated: bool
+    raised_by_rules: bool
+    category: str
+    title: str
+    summary: str
+    similarity: float
+    figures: list[FigureOut]
+    figure_text: list[str]
+    obligations: list[ObligationOut]
+    old: SideOut | None
+    new: SideOut | None
+    diff: list[DiffSegmentOut]
+    position: float
+
+
+class OverviewOut(BaseModel):
+    headline: str
+    key_points: list[str]
+
+
+class ComparisonStats(BaseModel):
+    old_clauses: int
+    new_clauses: int
+    unchanged: int
+    modified: int
+    added: int
+    removed: int
+    moved: int
+    by_significance: dict[str, int]
+
+
+class ComparisonSummary(BaseModel):
+    id: str
+    old_document: DocumentBrief
+    new_document: DocumentBrief
+    status: DocumentStatus
+    stage: str
+    progress_done: int
+    progress_total: int | None
+    error_code: str | None
+    error_message: str | None
+    created_at: str
+    stats: ComparisonStats | None = None
+    ai_used: bool | None = None
+
+
+class ComparisonDetail(ComparisonSummary):
+    summary: OverviewOut | None = None
+    ai_notice: str | None = None
+    changes: list[ChangeOut] = []
+
+
+class CreateComparisonRequest(BaseModel):
+    old_document_id: str
+    new_document_id: str

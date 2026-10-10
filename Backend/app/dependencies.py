@@ -9,3 +9,11 @@ def get_llm() -> LLMClient:
         return build_llm_client(get_settings())
     except LLMError as error:
         raise DocumentError(ErrorCode.AI_NOT_CONFIGURED, error.message, status_code=503) from error
+
+
+def get_optional_llm() -> LLMClient | None:
+    """For features that still work without an AI key (version comparison falls back to rules only)."""
+    try:
+        return build_llm_client(get_settings())
+    except LLMError:
+        return None

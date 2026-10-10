@@ -6,6 +6,7 @@ tested with a scripted fake and the provider can be swapped without touching it.
 
 import json
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from openai import (
@@ -31,7 +32,26 @@ class LLMError(Exception):
         self.configured = configured
 
 
+@dataclass(frozen=True)
+class ToolCall:
+    """One tool call the model asked for. `arguments` is the raw string: it may not be valid JSON."""
+
+    id: str
+    name: str
+    arguments: str
+
+
+@dataclass(frozen=True)
+class ToolTurn:
+    content: str
+    tool_calls: list[ToolCall]
+
+
 class LLMClient(Protocol):
+    async def tool_completion(
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], *, temperature: float | None = None
+    ) -> ToolTurn: ...
+
     async def json_completion(
         self, system: str, user: str, *, temperature: float | None = None
     ) -> dict[str, Any]: ...
@@ -113,6 +133,27 @@ class OpenAIClient:
                 {"role": "user", "content": "That was not a valid JSON object. Reply again with only the JSON object."},
             ]
         raise LLMError("The AI model returned an unreadable response. Please try again.") from last_error
+
+    async def tool_completion(
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], *, temperature: float | None = None
+    ) -> ToolTurn:
+        try:
+            response = await self._create(
+                temperature,
+                model=self._settings.openai_model,
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+            )
+        except OpenAIError as error:
+            raise _translate(error) from error
+        message = response.choices[0].message
+        calls = [
+            ToolCall(id=call.id, name=call.function.name or "", arguments=call.function.arguments or "")
+            for call in (message.tool_calls or [])
+            if getattr(call, "function", None) is not None
+        ]
+        return ToolTurn(content=message.content or "", tool_calls=calls)
 
     async def stream_completion(
         self, system: str, user: str, *, temperature: float | None = None

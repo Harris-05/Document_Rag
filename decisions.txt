@@ -338,3 +338,132 @@ Trade-offs: a comparison costs more model time than a single question (one extra
 longer answer prompt), and the cap of five documents keeps it bounded. The single-document loop was
 left untouched and the comparison loop is a separate module that reuses its helpers, so the
 well-tested single-document path could not regress. The cost is some duplicated loop structure.
+
+
+D17. Comparing two versions of a contract
+-----------------------------------------
+Requirement: take two versions, report differences at clause or paragraph level (not a character
+diff), explain in plain language what changed in substance, and let the reader filter or sort by how
+much a change matters. A liability cap going from AED 100,000 to AED 1,000,000 must never be treated
+as a rewording.
+
+Pipeline: segment -> align -> diff each pair -> rate -> overview. Each stage is a separate module
+with its own tests, and only the rating and the overview use a model.
+
+1. Segmentation by code. Each version is split into clauses at numbering ("12.", "12.1", "(a)") and
+   headings. Running headers, footers and page numbers are removed, and a clause that continues across
+   a page break is joined, so the same clause is not reported twice because of a layout change. A
+   heading with no body is dropped rather than reported as a clause.
+
+2. Alignment by code, not by the model. Clauses are matched first by identical text ignoring their
+   number, then by TF-IDF cosine similarity (0.5, or 0.7 for short clauses, with a bonus for the same
+   heading), then by position between already-matched neighbours when the wording overlaps enough. A
+   longest-increasing-subsequence pass marks clauses that kept their wording but changed place as
+   "moved", which is shown without any wording change. Matching on content instead of clause number is
+   deliberate: inserting clause 4 renumbers everything after it, and a number-based match would report
+   the whole rest of the contract as changed.
+
+3. Substance is checked by code first. Regular expressions extract money, percentages, durations,
+   dates and obligation words (shall/may/must, not, at least) from both sides and compare them. A
+   changed figure or obligation word gives the change a floor: figures at least "major", obligation
+   words at least "minor". A model cannot talk its way below that floor, and that was observed
+   during testing, where the scripted model called a 30 to 45 day payment term cosmetic and the
+   floor raised it to major. The card says when this happened.
+
+4. The model rates the rest. Changes are rated in batches, concurrently, as critical / major / minor /
+   cosmetic with a category, a short title and a one-sentence summary. The prompt says outright that
+   a reworded sentence is not a changed figure. The final rating is the HIGHER of the model's and the
+   floor from step 3, so the code can only make the result more cautious.
+
+5. Without a model the feature still works. Figure and obligation changes keep their floors, and
+   additions and removals are marked "Not rated" rather than guessed, with a banner saying that
+   ratings are rules-only. A change that is pure formatting, numbering or a thousands separator is
+   cosmetic with no model. "Not rated" sorts above "minor", because a person has to look at it.
+
+6. The display diff is of the clause body only, at word level, and the heading is shown separately.
+   A clause that became number 5 instead of 4 is not shown as a change. Differences in punctuation
+   or case only are not reported at all.
+
+7. Runs as a background job with stage and progress, stored with the result so it reopens instantly.
+   Asking for the same ordered pair again reuses the stored result. A comparison interrupted by a
+   restart is marked failed on startup instead of staying "processing" forever.
+
+Interface: select exactly two documents and choose "See what changed" (the first selected is the
+older). The overview leads with the headline and key points that quote the exact figures, marked as
+written by AI; changes are listed most significant first, filterable by significance, type and
+category, and sortable by significance, document order or category. Each change shows before and
+after side by side with the changed words struck out and added, and opens the clause in either
+original document with the same highlighting viewer as the chat.
+
+Trade-offs and limits: the model rates at most MAX_AI_RATED_CHANGES changes, and any beyond that
+are left to the rules. Clause detection is heuristic, so a contract with unusual numbering may be
+split coarsely, which makes a change cover a larger block. Scanned documents with no text layer
+cannot be compared. Not yet run against a real OpenAI key: the prompts were exercised with a
+scripted model, so the model's actual rating quality is unverified.
+
+
+D18. Part C: agentic document research (Option 2)
+-------------------------------------------------
+Choice: Option 2 over Option 1 (tracked-change redlining). Option 2 builds directly on the agent, the
+quote verifier and the streaming interface that already exist, so the effort goes into the hard part
+of the brief (a loop that stays bounded and survives bad model output) and not into OOXML plumbing.
+Option 1 is a different skill (editing Word XML runs without disturbing formatting) and would have
+been a worse use of the remaining time. Not attempted, so nothing about it is claimed.
+
+What it is: a second way of answering, chosen with a Standard / Research switch beside the question
+box (single document only). In Research mode the model is given three tools and decides for itself
+what to look up before anything is answered:
+  search_document(query, max_results)   hybrid keyword + embedding search, returns passages
+  get_section(number)                   one clause in full with its sub-clauses; a heading also works
+  list_clauses()                        the contract's table of contents with pages
+A real loop: the model calls tools, reads the results, and calls more, for example following "subject
+to clause 14" with get_section("14"). Standard mode is unchanged and remains the default, because it
+grades what it retrieved and is cheaper and more predictable. Research mode trades cost and speed for
+flexibility, and the interface says so.
+
+Shown as it happens: every call is announced before it runs ("Searching for "termination notice"",
+"Reading section 12") and its outcome after ("Found 5 passages on pages 4, 5"), with "Deciding what to
+look up next" between calls. These are the same events the saved history keeps, so a past answer can
+be expanded to show what was looked up.
+
+Hard limits, enforced in code and not requested of the model:
+  - MAX_RESEARCH_ROUNDS (6): the loop ends at the cap whatever the model wants. The answer is then
+    written from what was read and marked partial, and the interface says a limit was reached.
+  - MAX_TOOL_CALLS_PER_ROUND (4): extra calls in one turn are not run. Each still gets a reply,
+    because the provider rejects the next request if any tool call is left unanswered.
+  - MAX_INVALID_TOOL_CALLS (4): a model that keeps sending bad calls is stopped.
+  - Results are size-capped (passage and section length), and evidence kept for the answer is capped.
+  - An identical repeated call is not run again; the model is told it already has that result.
+Together these bound the number of model calls per question (at most rounds + 1 answer call).
+
+Malformed or invented calls never crash the request. Every call goes through one function that
+returns a message instead of raising. Handled and tested: a tool name that does not exist (including
+an empty name), arguments that are not valid JSON, arguments that are not an object, a missing
+required argument, a wrong type, an out-of-range value, and extra unknown arguments (rejected, not
+silently ignored). The model receives a plain description of what was wrong plus an example of a
+correct call, so it can correct itself on the next turn, and the interface shows the correction
+happening. Calls that fail count against the invalid-call budget above.
+
+If the model never uses a tool (answers from memory), it is asked once to look things up, and if it
+still does not, the question is searched once with the user's own words. The user therefore never gets
+an answer that was not read from the document. A greeting or off-topic message is declined without
+searching.
+
+Verified quotes still apply, with the same verifier as Standard mode. The answer is written in a
+separate step from only the passages the model actually read (numbered E1, E2, ... as they were shown
+to it), streamed, and every quote is searched for in the document text by code. A quote that is not
+there is shown as unverified. The model never writes the answer inside the tool loop, so tool results
+cannot leak into the answer unchecked.
+
+Quality has no separate grader in this mode. It comes from the check: all quotes verified and no
+limit hit is "strong evidence"; otherwise "partial". Coverage shows lookups and rounds instead of
+search rounds.
+
+Not supported, deliberately: research across several documents (the tools would need a document
+argument and the attribution checks of D16 would have to be repeated for it); the API rejects the
+combination instead of quietly falling back. The chosen mode is remembered per browser.
+
+Limits: the tool-calling path of the real OpenAI client is covered by tests with the SDK stubbed, but
+it has not been run against a live key, so how well a real small model chooses tools is unverified.
+Models that ignore tool_choice or return arguments in odd shapes are handled by the checks above, at
+the cost of extra rounds.

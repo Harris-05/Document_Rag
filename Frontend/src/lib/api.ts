@@ -1,6 +1,9 @@
 import { createSseParser } from "./sse";
 import type {
+  ChatMode,
   ChatEvent,
+  ComparisonDetail,
+  ComparisonSummary,
   Conversation,
   DocumentDetail,
   DocumentSummary,
@@ -114,13 +117,14 @@ export async function streamChatAt(
   question: string,
   onEvent: (event: ChatEvent) => void,
   signal: AbortSignal,
+  mode: ChatMode = "standard",
 ): Promise<void> {
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, mode }),
       signal,
     });
   } catch (error) {
@@ -150,7 +154,8 @@ export const streamDocumentChat = (
   question: string,
   onEvent: (event: ChatEvent) => void,
   signal: AbortSignal,
-) => streamChatAt(`/api/documents/${documentId}/chat`, question, onEvent, signal);
+  mode: ChatMode = "standard",
+) => streamChatAt(`/api/documents/${documentId}/chat`, question, onEvent, signal, mode);
 
 export const streamConversationChat = (
   conversationId: string,
@@ -170,3 +175,13 @@ export const listConversations = () => request<Conversation[]>("/api/conversatio
 export const deleteConversation = (id: string) => request<void>(`/api/conversations/${id}`, { method: "DELETE" });
 export const listConversationMessages = (id: string) =>
   request<ServerChatMessage[]>(`/api/conversations/${id}/messages`);
+
+export const createComparison = (oldDocumentId: string, newDocumentId: string) =>
+  request<ComparisonSummary>("/api/comparisons", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ old_document_id: oldDocumentId, new_document_id: newDocumentId }),
+  });
+export const getComparison = (id: string) => request<ComparisonDetail>(`/api/comparisons/${id}`);
+export const listComparisons = () => request<ComparisonSummary[]>("/api/comparisons");
+export const deleteComparison = (id: string) => request<void>(`/api/comparisons/${id}`, { method: "DELETE" });

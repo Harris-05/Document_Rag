@@ -48,6 +48,7 @@ async def chat(
             documents=[source_of(document)],
             llm=llm,
             settings=settings,
+            mode=body.mode,
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},

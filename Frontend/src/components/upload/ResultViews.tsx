@@ -27,6 +27,7 @@ const ERROR_PRESENTATION: Record<ErrorCode, { title: string; icon: Icon }> = {
   AI_NOT_CONFIGURED: { title: "The AI provider is not set up", icon: Warning },
   TOO_MANY_DOCUMENTS: { title: "Too many documents selected", icon: Warning },
   DOCUMENT_NOT_READY: { title: "A document is not ready", icon: Warning },
+  SAME_DOCUMENT: { title: "Choose two different documents", icon: Warning },
   INTERNAL: { title: "Something went wrong", icon: Warning },
   UNKNOWN: { title: "Something went wrong", icon: Warning },
 };

@@ -223,3 +223,24 @@ body {
 .no-focus-ring:focus-visible {
   outline: none;
 }
+
+/* Word-level changes inside a clause that was changed. */
+.diff-del {
+  background: var(--danger-soft);
+  color: var(--danger);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  border-radius: 3px;
+  padding: 0 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.diff-ins {
+  background: var(--success-soft);
+  color: var(--success);
+  border-radius: 3px;
+  padding: 0 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}

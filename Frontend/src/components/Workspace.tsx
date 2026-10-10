@@ -2,28 +2,32 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, useTransition } from "react";
+import { ComparisonList } from "@/components/library/ComparisonList";
 import { ConversationList } from "@/components/library/ConversationList";
 import { LibraryPanel } from "@/components/library/LibraryPanel";
 import { UploadPanel } from "@/components/upload/UploadPanel";
+import { useComparisons } from "@/hooks/useComparisons";
 import { useConversations } from "@/hooks/useConversations";
 import { useDocuments } from "@/hooks/useDocuments";
 import { useUpload } from "@/hooks/useUpload";
-import { ApiError, createConversation } from "@/lib/api";
+import { ApiError, createComparison, createConversation } from "@/lib/api";
 import { pruneSelection, toggleSelection } from "@/lib/selection";
 
 export function Workspace() {
   const router = useRouter();
   const { documents, status, error, refresh, remove } = useDocuments();
-  const comparisons = useConversations();
+  const chats = useConversations();
+  const versions = useComparisons();
   const upload = useUpload(refresh);
 
   const [chosen, setChosen] = useState<string[]>([]);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState<"chat" | "changes" | null>(null);
   const [navigating, startNavigation] = useTransition();
   const [compareError, setCompareError] = useState<string | null>(null);
   // "Opening" lasts only while the comparison is being created and the page is on its way. It is
   // not stored as a flag that outlives the trip: this page stays mounted when you come back to it.
-  const comparing = creating || navigating;
+  const comparing = (creating === "chat" || navigating) && creating !== "changes";
+  const showingChanges = creating === "changes";
 
   // The panel on the left already shows live progress for the file being processed,
   // so keep it out of the library list until it has finished.
@@ -49,15 +53,15 @@ export function Workspace() {
   const removeDocument = useCallback(
     async (id: string) => {
       const failure = await remove(id);
-      // Deleting a document can remove comparisons that depended on it.
-      await comparisons.refresh();
+      // Deleting a document can remove chats and comparisons that depended on it.
+      await Promise.all([chats.refresh(), versions.refresh()]);
       return failure;
     },
-    [remove, comparisons],
+    [remove, chats, versions],
   );
 
   const compare = useCallback(async () => {
-    setCreating(true);
+    setCreating("chat");
     setCompareError(null);
     try {
       const conversation = await createConversation(selected);
@@ -68,7 +72,22 @@ export function Workspace() {
     } catch (caught) {
       setCompareError(caught instanceof ApiError ? caught.message : "Could not start the comparison.");
     } finally {
-      setCreating(false);
+      setCreating(null);
+    }
+  }, [router, selected]);
+
+  // The first document selected is the older version, the second the newer one.
+  const showChanges = useCallback(async () => {
+    setCreating("changes");
+    setCompareError(null);
+    try {
+      const comparison = await createComparison(selected[0], selected[1]);
+      setChosen([]);
+      startNavigation(() => router.push(`/comparisons/${comparison.id}`));
+    } catch (caught) {
+      setCompareError(caught instanceof ApiError ? caught.message : "Could not start the comparison.");
+    } finally {
+      setCreating(null);
     }
   }, [router, selected]);
 
@@ -103,9 +122,12 @@ export function Workspace() {
           onClearSelection={() => setChosen([])}
           onCompare={compare}
           comparing={comparing}
+          onShowChanges={showChanges}
+          showingChanges={showingChanges}
           compareError={compareError}
         />
-        <ConversationList conversations={comparisons.conversations} onDelete={comparisons.remove} />
+        <ComparisonList comparisons={versions.comparisons} onDelete={versions.remove} />
+        <ConversationList conversations={chats.conversations} onDelete={chats.remove} />
       </div>
     </div>
   );

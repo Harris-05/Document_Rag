@@ -70,6 +70,10 @@ async def chat(
     settings: Settings = Depends(get_settings),
 ) -> StreamingResponse:
     conversation = _conversation(conversation_id)
+    if body.mode == "research" and conversation.kind == "multi":
+        raise HTTPException(
+            422, "Research mode works on one document at a time."
+        )
     details = [repository.get_detail(d.id) for d in conversation.documents if d.status == "ready"]
     documents = [source_of(detail) for detail in details if detail is not None]
     if not documents:

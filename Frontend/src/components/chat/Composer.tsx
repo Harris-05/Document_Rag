@@ -2,6 +2,7 @@
 
 import { ArrowUp, Stop } from "@phosphor-icons/react";
 import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
+import type { ChatMode } from "@/lib/types";
 
 const MAX_LENGTH = 2000;
 
@@ -10,9 +11,21 @@ interface ComposerProps {
   disabled: boolean;
   onSend: (question: string) => void;
   onStop: () => void;
+  mode: ChatMode;
+  /** Omitted when the chat has no choice of mode (several documents). */
+  onModeChange?: (mode: ChatMode) => void;
 }
 
-export function Composer({ streaming, disabled, onSend, onStop }: ComposerProps) {
+const MODES: { value: ChatMode; label: string; hint: string }[] = [
+  { value: "standard", label: "Standard", hint: "Searches, checks the passages are relevant, then answers." },
+  {
+    value: "research",
+    label: "Research",
+    hint: "The model looks things up itself, step by step, and follows cross-references. Slower.",
+  },
+];
+
+export function Composer({ streaming, disabled, onSend, onStop, mode, onModeChange }: ComposerProps) {
   const [value, setValue] = useState("");
   const field = useRef<HTMLTextAreaElement>(null);
   const canSend = value.trim().length > 0 && !streaming && !disabled;
@@ -41,6 +54,30 @@ export function Composer({ streaming, disabled, onSend, onStop }: ComposerProps)
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-2">
+      {onModeChange && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-1">
+          <div role="radiogroup" aria-label="How to answer" className="flex rounded-ctl border border-line bg-surface-2 p-0.5">
+            {MODES.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={mode === option.value}
+                disabled={streaming}
+                onClick={() => onModeChange(option.value)}
+                className={`min-h-8 cursor-pointer rounded-[8px] px-3 text-[13px] font-medium transition-[background-color,color] duration-150 disabled:cursor-not-allowed disabled:opacity-60 ${
+                  mode === option.value ? "bg-surface text-ink shadow-sm" : "text-ink-subtle hover:text-ink"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <span className="min-w-0 flex-1 text-xs leading-snug text-ink-subtle">
+            {MODES.find((option) => option.value === mode)?.hint}
+          </span>
+        </div>
+      )}
       <label htmlFor="question" className="sr-only">
         Your question about this document
       </label>

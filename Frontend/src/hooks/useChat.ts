@@ -9,6 +9,7 @@ import type {
   Citation,
   Coverage,
   ErrorCode,
+  ChatMode,
   ServerChatMessage,
   TraceStep,
 } from "@/lib/types";
@@ -189,7 +190,7 @@ export function useChat(source: ChatSource) {
   const streaming = state.messages.some((message) => message.status === "streaming");
 
   const ask = useCallback(
-    async (rawQuestion: string) => {
+    async (rawQuestion: string, mode: ChatMode = "standard") => {
       const question = rawQuestion.trim();
       if (!question || controller.current) return;
 
@@ -205,6 +206,7 @@ export function useChat(source: ChatSource) {
           question,
           (event) => dispatch({ type: "event", key: assistantKey, event }),
           run.signal,
+          mode,
         );
         // A stream that ends without a final event (dropped connection) must not look finished.
         dispatch({ type: "stopped", key: assistantKey });

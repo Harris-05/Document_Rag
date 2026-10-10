@@ -4,17 +4,18 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app import repository
+from app import comparison_repository, repository
 from app.config import get_settings
 from app.db import init_db
 from app.errors import DocumentError
-from app.routers import chat, conversations, documents
+from app.routers import chat, comparisons, conversations, documents
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
     repository.fail_interrupted_jobs()
+    comparison_repository.fail_interrupted()
     yield
 
 
@@ -44,3 +45,4 @@ def health() -> dict[str, str]:
 app.include_router(documents.router)
 app.include_router(chat.router)
 app.include_router(conversations.router)
+app.include_router(comparisons.router)

@@ -94,7 +94,7 @@ export function ConversationList({ conversations, onDelete }: ConversationListPr
   return (
     <section aria-labelledby="comparisons-heading" className="flex flex-col gap-3">
       <h2 id="comparisons-heading" className="text-lg font-semibold tracking-tight text-ink">
-        Comparisons
+        Questions across documents
       </h2>
       <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface shadow-card">
         {conversations.map((conversation) => (

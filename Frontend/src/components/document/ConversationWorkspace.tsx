@@ -2,13 +2,15 @@
 
 import { ArrowLeft, ChatsCircle, FileText, Info } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChatPane } from "@/components/chat/ChatPane";
 import { Button, LinkButton } from "@/components/ui/Button";
-import { ApiError, getConversation, getDocumentText } from "@/lib/api";
+import { useDocumentTexts } from "@/hooks/useDocumentTexts";
+import { ApiError, getConversation } from "@/lib/api";
 import { conversationChatSource } from "@/lib/chatSource";
-import type { Citation, Conversation, DocumentDetail } from "@/lib/types";
+import type { Citation, Conversation } from "@/lib/types";
 import { matchesOf, type ViewerTarget } from "@/lib/viewerTarget";
+import { DocumentTabs } from "./DocumentTabs";
 import { DocumentViewer } from "./DocumentViewer";
 import { Notice, WorkspaceSkeleton } from "./DocumentWorkspace";
 
@@ -17,8 +19,6 @@ type ConversationState =
   | { status: "ready"; conversation: Conversation }
   | { status: "missing" }
   | { status: "error"; message: string };
-
-type DetailState = { status: "ready"; document: DocumentDetail } | { status: "error"; message: string };
 
 type MobileView = "chat" | "document";
 
@@ -66,78 +66,18 @@ export function ConversationWorkspace({ id }: { id: string }) {
   return <Comparison conversation={state.conversation} />;
 }
 
-function DocumentTabs({
-  documents,
-  activeId,
-  onSelect,
-}: {
-  documents: Conversation["documents"];
-  activeId: string;
-  onSelect: (id: string) => void;
-}) {
-  return (
-    <div role="tablist" aria-label="Documents in this comparison" className="flex gap-1 overflow-x-auto border-b border-line px-3 py-2">
-      {documents.map((document, index) => (
-        <button
-          key={document.id}
-          type="button"
-          role="tab"
-          aria-selected={document.id === activeId}
-          onClick={() => onSelect(document.id)}
-          className={`flex min-h-10 max-w-56 shrink-0 cursor-pointer items-center gap-2 rounded-ctl px-3 text-[13px] font-medium transition-colors ${
-            document.id === activeId ? "bg-accent-soft text-accent" : "text-ink-muted hover:bg-surface-2 hover:text-ink"
-          }`}
-        >
-          <span className="grid size-5 shrink-0 place-items-center rounded-full bg-surface font-mono text-[10px]">{index + 1}</span>
-          <span className="truncate" title={document.filename}>
-            {document.filename}
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function Comparison({ conversation }: { conversation: Conversation }) {
   const source = useMemo(() => conversationChatSource(conversation.id), [conversation.id]);
   const [view, setView] = useState<MobileView>("chat");
   const [activeDocumentId, setActiveDocumentId] = useState(conversation.documents[0]?.id ?? "");
-  const [details, setDetails] = useState<Record<string, DetailState>>({});
+  const { details, ensureLoaded, retry } = useDocumentTexts();
   const [target, setTarget] = useState<ViewerTarget | null>(null);
   const [active, setActive] = useState<{ messageKey: string; n: number } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const requested = useRef(new Set<string>());
-
-  // Each document's text is fetched the first time it is needed, not all up front.
-  const ensureLoaded = useCallback((documentId: string) => {
-    if (!documentId || requested.current.has(documentId)) return;
-    requested.current.add(documentId);
-    getDocumentText(documentId)
-      .then((document) => setDetails((current) => ({ ...current, [documentId]: { status: "ready", document } })))
-      .catch((error: unknown) =>
-        setDetails((current) => ({
-          ...current,
-          [documentId]: {
-            status: "error",
-            message: error instanceof ApiError ? error.message : "Could not load this document.",
-          },
-        })),
-      );
-  }, []);
 
   useEffect(() => {
     ensureLoaded(activeDocumentId);
   }, [activeDocumentId, ensureLoaded]);
-
-  const retry = (documentId: string) => {
-    requested.current.delete(documentId);
-    setDetails((current) => {
-      const next = { ...current };
-      delete next[documentId];
-      return next;
-    });
-    ensureLoaded(documentId);
-  };
 
   const openCitation = useCallback(
     (messageKey: string, citation: Citation) => {
@@ -221,7 +161,16 @@ function Comparison({ conversation }: { conversation: Conversation }) {
         </section>
 
         <section aria-label="Documents" className={`${paneBase} ${view === "document" ? "flex" : "hidden"}`}>
-          <DocumentTabs documents={conversation.documents} activeId={activeDocumentId} onSelect={setActiveDocumentId} />
+          <DocumentTabs
+            ariaLabel="Documents in this comparison"
+            tabs={conversation.documents.map((document, index) => ({
+              id: document.id,
+              label: document.filename,
+              badge: String(index + 1),
+            }))}
+            activeId={activeDocumentId}
+            onSelect={setActiveDocumentId}
+          />
           {notice && (
             <p role="note" className="flex items-start gap-2 bg-warn-soft px-4 py-2.5 text-[13px] leading-relaxed text-warn sm:px-6">
               <Info size={16} weight="fill" className="mt-0.5 shrink-0" aria-hidden />

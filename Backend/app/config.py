@@ -44,9 +44,22 @@ class Settings(BaseSettings):
     max_retrieval_rounds: int = 3
     candidates_per_round: int = 14
     max_evidence_passages: int = 10
+    # Research mode: the model calls tools (search, read a section, list clauses) in a loop. These
+    # are hard limits so a confused or looping model cannot run up an unbounded bill.
+    max_research_rounds: int = Field(default=6, ge=1, le=15)
+    max_tool_calls_per_round: int = Field(default=4, ge=1, le=10)
+    max_invalid_tool_calls: int = Field(default=4, ge=1, le=20)
+    research_max_evidence: int = Field(default=14, ge=4, le=30)
+    research_passage_chars: int = Field(default=900, ge=200, le=4000)
+    research_section_chars: int = Field(default=4000, ge=500, le=20000)
     # Questions across several documents: how many may be compared at once, and how many passages
     # are judged per document in each round (kept small so the judging call stays quick).
     max_documents_per_question: int = Field(default=5, ge=2, le=10)
+    # Comparing two versions: how many changed clauses go to the AI for a rating (the rest keep their
+    # rules-based rating), how many are rated per request, and how many requests run at once.
+    max_ai_rated_changes: int = Field(default=120, ge=1, le=1000)
+    rate_batch_size: int = Field(default=6, ge=1, le=20)
+    rate_concurrency: int = Field(default=4, ge=1, le=10)
     candidates_per_document: int = Field(default=8, ge=3, le=20)
     # Neighbouring chunks added around each strongly relevant passage so a clause is read whole.
     neighbor_chunks: int = Field(default=1, ge=0, le=3)

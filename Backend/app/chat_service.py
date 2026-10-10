@@ -16,6 +16,7 @@ from app.config import Settings
 from app.rag.agent import AgentInput, run_agent
 from app.rag.llm import LLMClient, LLMError
 from app.rag.multi_agent import MultiInput, SourceDocument, run_multi_agent
+from app.rag.research_agent import run_research_agent
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +32,13 @@ def _events(
     history: list[tuple[str, str]],
     llm: LLMClient,
     settings: Settings,
+    mode: str = "standard",
 ) -> AsyncIterator[dict[str, Any]]:
-    """One document uses the single-document loop. Two or more are compared."""
+    """One document uses the single-document loop (or research mode). Two or more are compared."""
     if len(documents) == 1:
         only = documents[0]
-        return run_agent(
+        run = run_research_agent if mode == "research" else run_agent
+        return run(
             AgentInput(
                 question=question,
                 history=history,
@@ -57,6 +60,7 @@ async def stream_chat(
     documents: list[SourceDocument],
     llm: LLMClient,
     settings: Settings,
+    mode: str = "standard",
 ) -> AsyncIterator[str]:
     # Short-term memory window. A turn is a question plus its answer, hence the factor of two.
     # Zero turns disables memory entirely.
@@ -89,7 +93,7 @@ async def stream_chat(
     yield sse("start", {"user_message_id": user_message_id})
 
     try:
-        async for event in _events(documents, conversation_id, question, history, llm, settings):
+        async for event in _events(documents, conversation_id, question, history, llm, settings, mode):
             name, data = event["event"], event["data"]
             if name == "step":
                 trace.append(data)

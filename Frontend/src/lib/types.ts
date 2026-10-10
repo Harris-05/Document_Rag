@@ -40,6 +40,7 @@ export type ErrorCode =
   | "AI_NOT_CONFIGURED"
   | "TOO_MANY_DOCUMENTS"
   | "DOCUMENT_NOT_READY"
+  | "SAME_DOCUMENT"
   | "NETWORK"
   | "UNKNOWN";
 
@@ -90,11 +91,16 @@ export interface DocumentCoverage {
   evidence: "sufficient" | "partial" | "none";
 }
 
+/** "standard" grades retrieval in a fixed loop; "research" lets the model call tools to look things up. */
+export type ChatMode = "standard" | "research";
+
 export interface Coverage {
   pages: number;
   sections: number;
   unreadable_pages: number;
   rounds: number;
+  /** Tool calls the model made. Present in research mode only. */
+  tool_calls?: number;
   keyword_only: boolean;
   /** Per-document results, present when a question was asked across several documents. */
   documents?: DocumentCoverage[] | null;
@@ -138,3 +144,92 @@ export type ChatEvent =
       };
     }
   | { event: "error"; data: { message: string; message_id?: number } };
+
+// ---- Comparing two versions of a contract ----
+
+export type Significance = "critical" | "major" | "minor" | "cosmetic" | "unrated";
+export type ChangeType = "modified" | "added" | "removed" | "moved";
+
+export interface DocumentBrief {
+  id: string;
+  filename: string;
+  file_kind: FileKind;
+  page_count: number | null;
+}
+
+export interface FigureChange {
+  kind: "money" | "percent" | "duration" | "date" | string;
+  old: string | null;
+  new: string | null;
+}
+
+export interface ObligationChange {
+  word: string;
+  old: number;
+  new: number;
+}
+
+export interface ChangeSide {
+  text: string;
+  heading: string;
+  page: number;
+  ranges: CitationRange[];
+}
+
+export interface DiffSegment {
+  op: "equal" | "delete" | "insert";
+  text: string;
+}
+
+export interface Change {
+  id: number;
+  type: ChangeType;
+  moved: boolean;
+  significance: Significance;
+  ai_rated: boolean;
+  raised_by_rules: boolean;
+  category: string;
+  title: string;
+  summary: string;
+  similarity: number;
+  figures: FigureChange[];
+  figure_text: string[];
+  obligations: ObligationChange[];
+  old: ChangeSide | null;
+  new: ChangeSide | null;
+  diff: DiffSegment[];
+  /** Reading order in the new version, with removed clauses placed where they used to be. */
+  position: number;
+}
+
+export interface ComparisonStats {
+  old_clauses: number;
+  new_clauses: number;
+  unchanged: number;
+  modified: number;
+  added: number;
+  removed: number;
+  moved: number;
+  by_significance: Record<string, number>;
+}
+
+export interface ComparisonSummary {
+  id: string;
+  old_document: DocumentBrief;
+  new_document: DocumentBrief;
+  status: DocumentStatus;
+  stage: string;
+  progress_done: number;
+  progress_total: number | null;
+  error_code: string | null;
+  error_message: string | null;
+  created_at: string;
+  stats: ComparisonStats | null;
+  ai_used: boolean | null;
+}
+
+export interface ComparisonDetail extends ComparisonSummary {
+  summary: { headline: string; key_points: string[] } | null;
+  ai_notice: string | null;
+  changes: Change[];
+}

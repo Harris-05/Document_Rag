@@ -4,6 +4,7 @@ import { ChatsCircle, CloudSlash } from "@phosphor-icons/react";
 import { useCallback, useLayoutEffect, useRef } from "react";
 import { Button } from "@/components/ui/Button";
 import { useChat } from "@/hooks/useChat";
+import { useChatMode } from "@/hooks/useChatMode";
 import type { ChatSource } from "@/lib/chatSource";
 import type { Citation } from "@/lib/types";
 import { AssistantMessage } from "./AssistantMessage";
@@ -71,6 +72,9 @@ function EmptyChat({ onPick, disabled }: { onPick: (question: string) => void; d
 
 export function ChatPane({ source, multi = false, activeCitation, onOpenCitation }: ChatPaneProps) {
   const chat = useChat(source);
+  const [mode, changeMode] = useChatMode();
+  const researchMode = source.supportsResearch ? mode : "standard";
+
   const scroller = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
 
@@ -90,9 +94,9 @@ export function ChatPane({ source, multi = false, activeCitation, onOpenCitation
   const send = useCallback(
     (question: string) => {
       stickToBottom.current = true;
-      void chat.ask(question);
+      void chat.ask(question, researchMode);
     },
-    [chat],
+    [chat, researchMode],
   );
 
   const isEmpty = chat.history === "ready" && chat.messages.length === 0;
@@ -154,6 +158,8 @@ export function ChatPane({ source, multi = false, activeCitation, onOpenCitation
           disabled={chat.history !== "ready"}
           onSend={send}
           onStop={chat.stop}
+          mode={researchMode}
+          onModeChange={source.supportsResearch ? changeMode : undefined}
         />
       </div>
     </div>

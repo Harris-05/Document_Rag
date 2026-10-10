@@ -20,11 +20,13 @@ class FakeLLM:
         stream_size: int = 7,
         fail_stream_after: int | None = None,
         answer_for: Callable[[str], str] | None = None,
+        json_handler: Callable[[str, str], dict[str, Any]] | None = None,
     ) -> None:
         self.plans = list(plans or [])
         self.grades = list(grades or [])
         self.answer = answer
         self.answer_for = answer_for
+        self.json_handler = json_handler
         self.embeddings_fail = embeddings_fail
         self.stream_size = stream_size
         self.fail_stream_after = fail_stream_after
@@ -37,6 +39,8 @@ class FakeLLM:
     async def json_completion(self, system: str, user: str, *, temperature: float | None = None) -> dict[str, Any]:
         self.json_calls.append((system, user))
         self.temperatures.append((system, temperature))
+        if self.json_handler is not None:
+            return self.json_handler(system, user)
         queue = self.plans if system == prompts.QUERY_SYSTEM else self.grades
         if not queue:
             raise AssertionError("FakeLLM ran out of scripted responses")

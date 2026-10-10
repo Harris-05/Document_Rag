@@ -20,11 +20,14 @@ const QUALITY_BADGE: Partial<Record<AnswerQuality, { label: string; className: s
 function CoverageLine({ coverage }: { coverage: Coverage }) {
   const pages = `${formatCount(coverage.pages)} ${coverage.pages === 1 ? "page" : "pages"}`;
   const sections = `${formatCount(coverage.sections)} sections`;
-  const rounds = `${coverage.rounds} ${coverage.rounds === 1 ? "search round" : "search rounds"}`;
+  const research = coverage.tool_calls !== undefined;
+  const effort = research
+    ? `${coverage.tool_calls} ${coverage.tool_calls === 1 ? "lookup" : "lookups"} in ${coverage.rounds} ${coverage.rounds === 1 ? "round" : "rounds"}`
+    : `${coverage.rounds} ${coverage.rounds === 1 ? "search round" : "search rounds"}`;
   return (
     <div className="flex flex-col gap-1 text-xs text-ink-subtle">
       <p className="font-mono tabular-nums">
-        Searched {sections} across {pages}, {rounds}
+        {research ? `${sections} across ${pages}, ${effort}` : `Searched ${sections} across ${pages}, ${effort}`}
       </p>
       {coverage.keyword_only && <p>Semantic search was unavailable, so keyword search was used.</p>}
       {coverage.unreadable_pages > 0 && (

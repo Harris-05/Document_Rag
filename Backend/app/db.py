@@ -78,6 +78,24 @@ CREATE TABLE IF NOT EXISTS messages (
 
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages (conversation_id, id);
 
+-- A comparison of two versions of a contract. The finished result is stored as JSON.
+CREATE TABLE IF NOT EXISTS comparisons (
+    id              TEXT PRIMARY KEY,
+    old_document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    new_document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    status          TEXT NOT NULL CHECK (status IN ('processing', 'ready', 'failed')),
+    stage           TEXT NOT NULL DEFAULT 'queued',
+    progress_done   INTEGER NOT NULL DEFAULT 0,
+    progress_total  INTEGER,
+    error_code      TEXT,
+    error_message   TEXT,
+    result          TEXT,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_comparisons_created ON comparisons (created_at DESC);
+
 CREATE INDEX IF NOT EXISTS idx_documents_created ON documents (created_at DESC);
 """
 
@@ -104,8 +122,9 @@ def connect() -> Iterator[sqlite3.Connection]:
 
 
 # Version 2 changed how chunks are built, so older search indexes are discarded and rebuilt on a
-# document's next question. Version 3 moved chat messages from "per document" to "per conversation".
-SCHEMA_VERSION = 3
+# document's next question. Version 3 moved chat messages from "per document" to "per conversation". Version 4 added
+# version comparisons (new tables only, so nothing needs migrating).
+SCHEMA_VERSION = 4
 
 
 def _has_legacy_messages(connection: sqlite3.Connection) -> bool:
