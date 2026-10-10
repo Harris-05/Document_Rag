@@ -467,3 +467,41 @@ Limits: the tool-calling path of the real OpenAI client is covered by tests with
 it has not been run against a live key, so how well a real small model chooses tools is unverified.
 Models that ignore tool_choice or return arguments in odd shapes are handled by the checks above, at
 the cost of extra rounds.
+
+
+D19. Bonus: export an answer, and ask by voice
+----------------------------------------------
+Export. Each finished answer has "Export with quotes" buttons for PDF and Word. The file holds the
+question, the answer, the labelled general explanation kept as its own section, every quote with
+"Verified" (and its page, and its document when several were compared) or "Not verified", the
+documents involved, the evidence rating, and a note saying what "Verified" means.
+  - Built on the server from the saved message (GET /api/messages/{id}/export?format=pdf|docx), not
+    from what is on screen, so any answer in the history can be exported, including after a reload,
+    and the file cannot differ from what was verified. One content builder feeds both renderers, so
+    the two formats cannot drift apart.
+  - Unverified quotes are included and marked, not dropped. A file that silently left them out would
+    read as more reliable than the answer was. A stopped answer says it may be incomplete.
+  - Only finished or stopped answers with text can be exported (a failed one returns 409).
+  - PDF uses reportlab, Word uses python-docx; both were already installed for tests and are now
+    runtime dependencies. The PDF registers a system TrueType font when one exists (Arial or DejaVu or
+    Liberation) so accents and typographic quotes survive; otherwise it falls back to the built-in font
+    and replaces characters it cannot draw with "?". Right-to-left scripts such as Arabic are not
+    shaped, so Arabic text would not render correctly in the PDF. Not claimed as supported.
+
+Voice input. A microphone button in the question box uses the browser's own speech recognition
+(Chrome, Edge, Safari). Words appear in the box live and are NOT sent automatically: in a legal tool a
+misheard word changes the question, so the reader checks it and presses send. Spoken words are added
+after anything already typed; typing or sending while listening ends the recording and discards what
+was still being recognised, so an edit is never overwritten.
+  - Chosen over recording audio and sending it to a transcription model because it needs no extra
+    model access or cost (the OpenAI project in use did not even allow embeddings) and nothing goes
+    through this server. Trade-off: Chrome sends the audio to its own speech service, so it needs an
+    internet connection, and Firefox has no support. Where it is missing the button is shown disabled
+    with an explanation, not hidden. Recognition language follows the browser's language.
+  - A blocked microphone, no speech, no microphone and a network failure each get a specific message.
+  - The microphone needs a secure page: it works on localhost and on the deployed https site.
+
+Testing limits, stated plainly: export is tested end to end, including opening the generated PDF and
+Word files. Voice is tested in a real browser with a stand-in for the recogniser (headless Chrome has
+no microphone), which checks everything the app does around it but NOT how accurately real speech is
+recognised. That has not been tried with a real microphone.

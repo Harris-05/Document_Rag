@@ -62,6 +62,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 /** URL of the original uploaded file, for the in-browser viewer. */
 export const fileUrl = (id: string) => `${API_URL}/api/documents/${id}/file`;
 
+export type ExportFormat = "pdf" | "docx";
+
+/** Fetches an answer, with its quotes, as a file. The caller decides what to do with the bytes. */
+export async function exportAnswer(messageId: number, format: ExportFormat): Promise<{ blob: Blob; filename: string }> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/api/messages/${messageId}/export?format=${format}`, { cache: "no-store" });
+  } catch {
+    throw new ApiError(NETWORK_ERROR);
+  }
+  if (!response.ok) throw new ApiError(await parseError(response), response.status);
+  const named = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") ?? "");
+  return { blob: await response.blob(), filename: named?.[1] ?? `answer.${format}` };
+}
+
 export const listDocuments = () => request<DocumentSummary[]>("/api/documents");
 export const getDocument = (id: string) => request<DocumentSummary>(`/api/documents/${id}`);
 export const getDocumentText = (id: string) => request<DocumentDetail>(`/api/documents/${id}/text`);

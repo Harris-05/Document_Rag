@@ -10,6 +10,7 @@ import { AgentTrace } from "./AgentTrace";
 import { AnswerText } from "./AnswerText";
 import { CitationCard } from "./CitationCard";
 import { DocumentEvidence } from "./DocumentEvidence";
+import { ExportAnswer } from "./ExportAnswer";
 
 const QUALITY_BADGE: Partial<Record<AnswerQuality, { label: string; className: string }>> = {
   sufficient: { label: "Strong evidence", className: "bg-success-soft text-success" },
@@ -164,6 +165,12 @@ export function AssistantMessage({
           </ul>
         </section>
       )}
+
+      {message.status === "complete" &&
+        message.serverId !== null &&
+        (message.quality === "sufficient" || message.quality === "partial") && (
+          <ExportAnswer messageId={message.serverId} />
+        )}
 
       {multi && message.coverage?.documents && message.status === "complete" && message.quality !== "not_applicable" && (
         <DocumentEvidence documents={message.coverage.documents} />

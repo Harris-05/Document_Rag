@@ -1,7 +1,8 @@
 "use client";
 
-import { ArrowUp, Stop } from "@phosphor-icons/react";
+import { ArrowUp, Microphone, Stop } from "@phosphor-icons/react";
 import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
+import { useSpeechInput } from "@/hooks/useSpeechInput";
 import type { ChatMode } from "@/lib/types";
 
 const MAX_LENGTH = 2000;
@@ -29,6 +30,8 @@ export function Composer({ streaming, disabled, onSend, onStop, mode, onModeChan
   const [value, setValue] = useState("");
   const field = useRef<HTMLTextAreaElement>(null);
   const canSend = value.trim().length > 0 && !streaming && !disabled;
+  // What was already typed when recording began; spoken words are added after it, not over it.
+  const typedBefore = useRef("");
 
   const resize = () => {
     const element = field.current;
@@ -37,9 +40,28 @@ export function Composer({ streaming, disabled, onSend, onStop, mode, onModeChan
     element.style.height = `${Math.min(element.scrollHeight, 168)}px`;
   };
 
+  const voice = useSpeechInput({
+    onTranscript: (transcript) => {
+      const before = typedBefore.current;
+      setValue(before && transcript ? `${before} ${transcript}` : before || transcript);
+      requestAnimationFrame(resize);
+    },
+  });
+
+  const toggleVoice = () => {
+    if (voice.listening) {
+      voice.stop();
+      return;
+    }
+    typedBefore.current = value.trim();
+    voice.start();
+    field.current?.focus();
+  };
+
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
     if (!canSend) return;
+    voice.cancel();
     onSend(value);
     setValue("");
     requestAnimationFrame(resize);
@@ -89,6 +111,9 @@ export function Composer({ streaming, disabled, onSend, onStop, mode, onModeChan
           value={value}
           maxLength={MAX_LENGTH}
           onChange={(event) => {
+            // Typing takes over from the microphone, so the next transcript cannot overwrite the edit.
+            if (voice.listening) voice.cancel();
+            if (voice.error) voice.clearError();
             setValue(event.target.value);
             resize();
           }}
@@ -96,6 +121,36 @@ export function Composer({ streaming, disabled, onSend, onStop, mode, onModeChan
           placeholder="Ask about a clause, party, date or figure"
           className="no-focus-ring max-h-42 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 text-[15px] leading-6 text-ink outline-none placeholder:text-ink-subtle"
         />
+        {voice.supported ? (
+          <button
+            type="button"
+            onClick={toggleVoice}
+            disabled={disabled || streaming}
+            aria-pressed={voice.listening}
+            aria-label={voice.listening ? "Stop voice input" : "Ask by voice"}
+            title={voice.listening ? "Stop listening" : "Ask by voice"}
+            className={`relative grid size-11 shrink-0 cursor-pointer place-items-center rounded-ctl border transition-[background-color,color,transform] duration-150 active:scale-[0.96] disabled:pointer-events-none disabled:opacity-40 ${
+              voice.listening
+                ? "border-accent bg-accent-soft text-accent"
+                : "border-line-strong bg-surface text-ink-muted hover:bg-surface-2 hover:text-ink"
+            }`}
+          >
+            {voice.listening && (
+              <span aria-hidden className="absolute inset-0 animate-ping rounded-ctl bg-accent/20 motion-reduce:animate-none" />
+            )}
+            <Microphone size={20} weight={voice.listening ? "fill" : "regular"} className="relative" aria-hidden />
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled
+            aria-label="Voice input is not available in this browser"
+            title="Voice input needs a browser with speech recognition, such as Chrome, Edge or Safari"
+            className="grid size-11 shrink-0 place-items-center rounded-ctl border border-line text-ink-subtle opacity-40"
+          >
+            <Microphone size={20} aria-hidden />
+          </button>
+        )}
         {streaming ? (
           <button
             type="button"
@@ -117,7 +172,17 @@ export function Composer({ streaming, disabled, onSend, onStop, mode, onModeChan
         )}
       </div>
       <p className="flex justify-between gap-4 px-1 text-xs text-ink-subtle">
-        <span>Enter to send, Shift+Enter for a new line</span>
+        {voice.error ? (
+          <span role="alert" className="text-danger">
+            {voice.error}
+          </span>
+        ) : voice.listening ? (
+          <span role="status" className="text-accent">
+            Listening. Speak your question; it stops when you pause.
+          </span>
+        ) : (
+          <span>Enter to send, Shift+Enter for a new line</span>
+        )}
         {value.length > MAX_LENGTH * 0.8 && (
           <span className="font-mono tabular-nums">
             {value.length}/{MAX_LENGTH}

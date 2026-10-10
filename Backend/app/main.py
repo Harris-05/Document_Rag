@@ -8,7 +8,7 @@ from app import comparison_repository, repository
 from app.config import get_settings
 from app.db import init_db
 from app.errors import DocumentError
-from app.routers import chat, comparisons, conversations, documents
+from app.routers import chat, comparisons, conversations, documents, export
 
 
 @asynccontextmanager
@@ -26,6 +26,7 @@ app.add_middleware(
     allow_origins=get_settings().cors_origin_list,
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 
@@ -46,3 +47,4 @@ app.include_router(documents.router)
 app.include_router(chat.router)
 app.include_router(conversations.router)
 app.include_router(comparisons.router)
+app.include_router(export.router)

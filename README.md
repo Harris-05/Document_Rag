@@ -19,6 +19,7 @@ trusted, and quotes that are verified by code before they are shown.
 | Citation highlighting on the real rendered PDF or Word page: multi-line quotes, quotes across a page break, repeated quotes with a next/previous stepper | Done and checked in a real browser |
 | Multi-document questions: select several documents, one integrated comparison, each quote names and is verified in its own document | Done and checked in a real browser |
 | Version comparison (Part B 7): two versions compared clause by clause, figure changes caught by code, plain-language overview, filter and sort by significance | Done and checked in a real browser |
+| Bonus: export an answer with its quotes as PDF or Word; ask by voice (browser speech recognition) | Done. Export checked end to end; voice checked with a stand-in recogniser, not a real microphone |
 | Part C, Option 2: research mode where the model calls tools (search, read a section, list clauses) in a bounded loop, shown live, malformed calls handled, quotes still verified | Done and checked in a real browser |
 
 ## How the chat answers a question (agentic RAG)
@@ -100,6 +101,17 @@ parameters never crashes the request: the model is told what was wrong and tries
 then written from only what was read, streamed, and every quote is verified against the document as in
 Standard mode. Research is available for one document at a time. See `decisions.txt` (D18).
 
+### Export and voice input
+
+**Export.** Under any finished answer, *Export with quotes* downloads a PDF or Word file with the
+question, the answer, the general explanation kept separate, and every quote marked **Verified** (with
+its page, and its document when several were compared) or **Not verified**. It is built on the server
+from the saved answer, so old answers export too. Arabic text is not supported in the PDF.
+
+**Voice.** The microphone button beside the question box fills it from your speech using the browser's
+speech recognition (Chrome, Edge, Safari; not Firefox). The question is never sent automatically, so a
+misheard word can be corrected first. See `decisions.txt` (D19).
+
 ### Quote verification
 
 Quotes are matched against the stored page text after normalising both sides: whitespace and line
@@ -171,6 +183,7 @@ cd Backend
 Backend/   FastAPI service
   app/extraction.py     PDF/DOCX text extraction (LangChain loaders)
   app/rag/              chunking, hybrid index, LLM client, agent loop, quote verification (quotes.py)
+  app/export/           PDF and Word export of an answer with its quotes
   app/rag/research_*.py  research mode: tool definitions with argument checks, the bounded tool-calling loop
   app/compare/          clause segmentation, alignment, figure extraction, rating, comparison engine
   app/routers/          documents, chat, conversations and comparisons endpoints

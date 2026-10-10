@@ -18,6 +18,8 @@ export type MessageStatus = "streaming" | "complete" | "stopped" | "error";
 
 export interface ChatMessageView {
   key: string;
+  /** The id the server saved this message under, once known. Needed to export an answer. */
+  serverId: number | null;
   role: "user" | "assistant";
   content: string;
   status: MessageStatus;
@@ -53,6 +55,7 @@ function fromServer(messages: ServerChatMessage[]): ChatMessageView[] {
     if (message.role === "user") lastQuestion = message.content;
     return {
       key: `server-${message.id}`,
+      serverId: message.id,
       role: message.role,
       content: message.content,
       status: message.status,
@@ -88,6 +91,7 @@ function reducer(state: ChatState, action: Action): ChatState {
           ...state.messages,
           {
             key: action.userKey,
+            serverId: null,
             role: "user",
             content: action.question,
             status: "complete",
@@ -101,6 +105,7 @@ function reducer(state: ChatState, action: Action): ChatState {
           },
           {
             key: action.assistantKey,
+            serverId: null,
             role: "assistant",
             content: "",
             status: "streaming",
@@ -128,6 +133,7 @@ function reducer(state: ChatState, action: Action): ChatState {
             return {
               ...message,
               status: "complete",
+              serverId: event.data.message_id,
               quality: event.data.quality,
               coverage: event.data.coverage,
               content: message.content.trim(),
@@ -136,6 +142,7 @@ function reducer(state: ChatState, action: Action): ChatState {
             return {
               ...message,
               status: "error",
+              serverId: event.data.message_id ?? null,
               errorMessage: event.data.message,
               content: message.content.trim(),
             };

@@ -87,3 +87,16 @@ def recent_history(conversation_id: str, limit: int = 8) -> list[tuple[str, str]
 def clear_messages(conversation_id: str) -> None:
     with connect() as connection:
         connection.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))
+
+
+def get_message_with_question(message_id: int) -> tuple[ChatMessage, str | None, str] | None:
+    """An answer, the question that prompted it (the nearest earlier user message), and its conversation."""
+    with connect() as connection:
+        row = connection.execute("SELECT * FROM messages WHERE id = ?", (message_id,)).fetchone()
+        if row is None:
+            return None
+        question = connection.execute(
+            "SELECT content FROM messages WHERE conversation_id = ? AND role = 'user' AND id < ? ORDER BY id DESC LIMIT 1",
+            (row["conversation_id"], message_id),
+        ).fetchone()
+    return _row_to_message(row), (question["content"] if question else None), row["conversation_id"]
